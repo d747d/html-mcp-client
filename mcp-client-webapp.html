@@ -444,11 +444,22 @@
                         <div class="form-group">
                             <label for="model-selection">Model</label>
                             <select id="model-selection" class="form-control">
-                                <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                                <option value="anthropic/claude-3-opus" selected>Claude 3 Opus</option>
-                                <option value="anthropic/claude-3-sonnet">Claude 3 Sonnet</option>
-                                <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
-                                <option value="google/gemini-pro">Google Gemini Pro</option>
+                                <!-- Free models (no API key required) -->
+                                <optgroup label="Free Models (No API Key Required)">
+                                    <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Instruct (Free)</option>
+                                    <option value="meta-llama/llama-2-70b-chat:free">Llama 2 70B Chat (Free)</option>
+                                    <option value="google/gemini-pro:free">Google Gemini Pro (Free)</option>
+                                    <option value="meta-llama/llama-2-13b-chat:free">Llama 2 13B Chat (Free)</option>
+                                    <option value="openchat/openchat-7b:free">OpenChat 7B (Free)</option>
+                                </optgroup>
+                                <!-- Premium models (API key required) -->
+                                <optgroup label="Premium Models (API Key Required)">
+                                    <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                    <option value="anthropic/claude-3-opus">Claude 3 Opus</option>
+                                    <option value="anthropic/claude-3-sonnet" selected>Claude 3 Sonnet</option>
+                                    <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
+                                    <option value="google/gemini-pro">Google Gemini Pro</option>
+                                </optgroup>
                             </select>
                         </div>
                         <div class="form-group">
@@ -523,7 +534,7 @@
                 
                 // OpenRouter settings
                 this.openRouterApiKey = localStorage.getItem('openRouterApiKey') || '';
-                this.selectedModel = localStorage.getItem('selectedModel') || 'anthropic/claude-3-sonnet';
+                this.selectedModel = localStorage.getItem('selectedModel') || 'mistralai/mistral-7b-instruct:free';
                 this.systemPrompt = localStorage.getItem('systemPrompt') || 'You are a helpful AI assistant with access to tools. Use tools when appropriate to fulfill user requests.';
                 
                 // Load settings from localStorage
@@ -1094,8 +1105,12 @@
             
             // Send message to LLM through OpenRouter
             async sendToLLM(userMessage, isFollowUp = false) {
-                if (!this.openRouterApiKey) {
-                    throw new Error('OpenRouter API key not set. Please configure it in settings.');
+                // Check if the selected model is a free model
+                const isUsingFreeModel = this.selectedModel.includes(':free');
+                
+                // If using a paid model, we need an API key
+                if (!isUsingFreeModel && !this.openRouterApiKey) {
+                    throw new Error('OpenRouter API key not set. Please configure it in settings or select a free model.');
                 }
                 
                 let messages;
@@ -1131,14 +1146,20 @@
                 }));
                 
                 // Make OpenRouter API request
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': window.location.href,
+                    'X-Title': 'MCP Client Web App'
+                };
+                
+                // Only add Authorization header if we have an API key
+                if (this.openRouterApiKey) {
+                    headers['Authorization'] = `Bearer ${this.openRouterApiKey}`;
+                }
+                
                 const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.openRouterApiKey}`,
-                        'HTTP-Referer': window.location.href,
-                        'X-Title': 'MCP Client Web App'
-                    },
+                    headers: headers,
                     body: JSON.stringify({
                         model: this.selectedModel,
                         messages: messages,
