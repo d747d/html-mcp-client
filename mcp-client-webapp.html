@@ -456,7 +456,11 @@
                 this.mcpServerUrl = this.elements.serverUrl.value;
                 this.messageEndpoint = this.elements.messageEndpoint.value;
                 
+                console.log(`[MCP] Attempting to connect to server: ${this.mcpServerUrl}`);
+                console.log(`[MCP] Message endpoint: ${this.messageEndpoint}`);
+                
                 if (!this.mcpServerUrl) {
+                    console.error('[MCP] Connection error: No server URL provided');
                     this.addSystemMessage('Error: Please enter a server URL.', 'error');
                     return;
                 }
@@ -464,23 +468,30 @@
                 try {
                     const url = new URL(this.mcpServerUrl);
                     if (!['http:', 'https:'].includes(url.protocol)) {
+                        console.error(`[MCP] Connection error: Invalid protocol: ${url.protocol}`);
                         throw new Error('Invalid protocol');
                     }
+                    console.log(`[MCP] Validated URL: ${url.href}`);
                 } catch (error) {
+                    console.error('[MCP] Connection error: Invalid URL format', error);
                     this.addSystemMessage('Error: Invalid server URL. Must be a valid HTTP or HTTPS URL.', 'error');
                     return;
                 }
                 
                 this.updateConnectionStatus('connecting', 'Connecting...');
+                console.log('[MCP] Connection status: Connecting...');
                 
                 try {
+                    console.log('[MCP] Creating EventSource connection');
                     this.eventSource = new EventSource(this.mcpServerUrl);
                     
                     this.eventSource.onopen = () => {
                         this.connected = true;
+                        console.log('[MCP] Connection established successfully');
                         this.updateConnectionStatus('connected', 'Connected');
                         this.addSystemMessage('Connected to MCP server.');
                         
+                        console.log('[MCP] Sending initialize request');
                         this.sendMcpRequest({
                             method: 'initialize',
                             params: {
@@ -493,21 +504,23 @@
                     this.eventSource.onmessage = (event) => this.handleServerMessage(event);
                     
                     this.eventSource.onerror = (error) => {
-                        console.error('SSE connection error:', error);
+                        console.error('[MCP] SSE connection error:', error);
                         this.disconnect();
                         this.addSystemMessage('Error: Connection to MCP server failed.', 'error');
                     };
                 } catch (error) {
-                    console.error('Failed to connect to MCP server:', error);
+                    console.error('[MCP] Failed to create connection:', error);
                     this.updateConnectionStatus('disconnected', 'Disconnected');
                     this.addSystemMessage('Error: Failed to connect to MCP server.', 'error');
                 }
             }
             
             disconnect() {
+                console.log('[MCP] Disconnecting from server');
                 if (this.eventSource) {
                     this.eventSource.close();
                     this.eventSource = null;
+                    console.log('[MCP] EventSource connection closed');
                 }
                 
                 this.connected = false;
@@ -516,7 +529,9 @@
                 this.addSystemMessage('Disconnected from MCP server.');
                 
                 this.tools = [];
+                console.log('[MCP] Tools list cleared');
                 this.updateToolsList();
+                console.log('[MCP] Disconnection complete');
             }
             
             updateConnectionStatus(state, text) {
@@ -526,23 +541,29 @@
             }
             
             handleServerMessage(event) {
+                console.log('[MCP] Received raw message from server:', event.data);
                 let message;
                 try {
                     message = JSON.parse(event.data);
                 } catch (error) {
-                    console.error('Error parsing message:', error, event.data);
+                    console.error('[MCP] Error parsing message:', error);
+                    console.error('[MCP] Raw message data:', event.data);
                     return;
                 }
                 
-                console.log('Received MCP message:', message);
+                console.log('[MCP] Parsed message:', message);
                 
                 if (message.result && message.id) {
+                    console.log(`[MCP] Processing response for request ID: ${message.id}`);
                     this.handleResponseMessage(message);
                 } else if (message.method && !message.id) {
+                    console.log(`[MCP] Processing notification: ${message.method}`);
                     this.handleNotificationMessage(message);
                 } else if (message.error) {
-                    console.error('MCP error:', message.error);
+                    console.error('[MCP] Protocol error:', message.error);
                     this.addSystemMessage(`MCP Error: ${message.error.message}`, 'error');
+                } else {
+                    console.warn('[MCP] Received message with unknown format:', message);
                 }
             }
             
@@ -590,46 +611,75 @@
             }
             
             handleInitializeResponse(result) {
-                console.log('Initialization successful:', result);
+                console.log('[MCP] Initialization successful:', result);
+                console.log('[MCP] Server capabilities:', result.capabilities);
+                console.log('[MCP] Server info:', result.serverInfo);
+                
                 this.addSystemMessage('MCP Server initialized successfully.');
                 
+                console.log('[MCP] Sending initialized notification');
                 this.sendMcpNotification({
                     method: 'initialized'
                 });
                 
+                console.log('[MCP] Requesting tools list');
                 this.listTools();
             }
             
             handleToolsListResponse(result) {
                 if (result && result.tools) {
                     this.tools = result.tools;
+                    console.log(`[MCP] Received ${this.tools.length} tools from server:`, this.tools);
+                    this.tools.forEach((tool, index) => {
+                        console.log(`[MCP] Tool ${index+1}: ${tool.name}`);
+                        console.log(`[MCP] - Description: ${tool.description || 'None'}`);
+                        console.log(`[MCP] - Schema: ${JSON.stringify(tool.inputSchema)}`);
+                    });
                     this.updateToolsList();
                     this.addSystemMessage(`Found ${this.tools.length} available tools.`);
+                } else {
+                    console.warn('[MCP] Received empty or invalid tools list response:', result);
                 }
             }
             
             handleToolCallResponse(requestId, result) {
+                console.log(`[MCP] Tool call response received for request ID: ${requestId}`, result);
                 const pendingCall = this.pendingToolCalls[requestId];
                 if (!pendingCall) {
-                    console.warn('Received tool call response for unknown request:', requestId);
+                    console.warn('[MCP] Received tool call response for unknown request:', requestId);
                     return;
                 }
                 
+                console.log(`[MCP] Processing tool result for: ${pendingCall.name}`);
+                console.log('[MCP] Tool arguments were:', pendingCall.args);
+                console.log('[MCP] Tool error status:', result.isError ? 'ERROR' : 'SUCCESS');
+                
                 let toolResult = '';
                 if (result.content && result.content.length > 0) {
+                    console.log('[MCP] Tool response content items:', result.content.length);
+                    result.content.forEach((item, i) => {
+                        console.log(`[MCP] Content item ${i+1}:`, item);
+                    });
+                    
                     toolResult = result.content
                         .filter(item => item.type === 'text')
                         .map(item => item.text)
                         .join('\n');
+                    
+                    console.log('[MCP] Extracted text content:', toolResult);
+                } else {
+                    console.warn('[MCP] Tool response had no content items');
                 }
                 
                 toolResult = this.sanitizeHTML(toolResult);
                 
                 this.addToolResultMessage(pendingCall.name, toolResult);
                 
+                console.log('[MCP] Continuing conversation with tool result');
                 this.continueConversationWithToolResult(pendingCall, toolResult, result.isError);
                 
                 delete this.pendingToolCalls[requestId];
+                console.log(`[MCP] Removed pending tool call for request ID: ${requestId}`);
             }
             
             listTools() {
@@ -676,6 +726,7 @@
             
             sendMcpRequest(request) {
                 if (!this.connected) {
+                    console.error('[MCP] Attempted to send request while disconnected');
                     this.addSystemMessage('Error: Not connected to MCP server.', 'error');
                     return null;
                 }
@@ -687,18 +738,35 @@
                     ...request
                 };
                 
+                console.log(`[MCP] Sending request ID ${id}, method: ${request.method}`, request.params);
+                console.log('[MCP] Full request payload:', jsonRpcRequest);
+                
                 this.messageQueue.push({
                     id,
                     method: request.method,
                     timestamp: Date.now()
                 });
                 
-                fetch(new URL(this.messageEndpoint, this.mcpServerUrl).href, {
+                const url = new URL(this.messageEndpoint, this.mcpServerUrl).href;
+                console.log(`[MCP] Sending to endpoint: ${url}`);
+                
+                fetch(url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(jsonRpcRequest)
+                }).then(response => {
+                    if (!response.ok) {
+                        console.error(`[MCP] HTTP error: ${response.status} ${response.statusText}`);
+                        return response.text().then(text => {
+                            console.error('[MCP] Response body:', text);
+                            throw new Error(`HTTP error: ${response.status}`);
+                        });
+                    }
+                    console.log(`[MCP] Request ID ${id} sent successfully, HTTP status: ${response.status}`);
+                    return response;
                 }).catch(error => {
-                    console.error('Error sending MCP request:', error);
+                    console.error('[MCP] Error sending request:', error);
+                    console.error(`[MCP] Failed request details - ID: ${id}, Method: ${request.method}`);
                     this.addSystemMessage('Error sending request to MCP server.', 'error');
                 });
                 
