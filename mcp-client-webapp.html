@@ -5,433 +5,184 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Client</title>
     <style>
-        /* Base styles */
         :root {
-            --primary-color: #4b6cb7;
-            --secondary-color: #182848;
-            --bg-color: #f9f9f9;
-            --text-color: #333;
-            --sidebar-width: 300px;
-            --border-color: #ddd;
-            --chat-bg: #fff;
-            --user-msg-bg: #e6f2ff;
-            --assistant-msg-bg: #f0f0f0;
-            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            --accordion-header-bg: #f8f8f8;
-            --modal-bg: rgba(0, 0, 0, 0.5);
-            --modal-content-bg: white;
-            --btn-secondary-bg: #f0f0f0;
-            --form-control-bg: #fff;
-            --form-control-border: #ddd;
-            --toggle-slider-bg: #ccc;
-            --pre-bg: #f5f5f5;
-            --tool-item-bg: #f5f5f5;
-            --tool-item-hover-bg: #e9e9e9;
+            --primary-color: #4b6cb7; --secondary-color: #182848; --bg-color: #f9f9f9;
+            --text-color: #333; --sidebar-width: 300px; --border-color: #ddd;
+            --chat-bg: #fff; --user-msg-bg: #e6f2ff; --assistant-msg-bg: #f0f0f0;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1); --accordion-header-bg: #f8f8f8;
+            --modal-bg: rgba(0, 0, 0, 0.5); --modal-content-bg: white;
+            --btn-secondary-bg: #f0f0f0; --form-control-bg: #fff;
+            --form-control-border: #ddd; --toggle-slider-bg: #ccc;
+            --pre-bg: #f5f5f5; --tool-item-bg: #f5f5f5; --tool-item-hover-bg: #e9e9e9;
         }
-
-        /* Dark mode colors */
         [data-theme="dark"] {
-            --primary-color: #5d7ec9;
-            --secondary-color: #2a3f6c;
-            --bg-color: #121212;
-            --text-color: #e0e0e0;
-            --border-color: #444;
-            --chat-bg: #1e1e1e;
-            --user-msg-bg: #1a3152;
-            --assistant-msg-bg: #2a2a2a;
-            --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            --accordion-header-bg: #2a2a2a;
-            --modal-bg: rgba(0, 0, 0, 0.7);
-            --modal-content-bg: #1e1e1e;
-            --btn-secondary-bg: #3a3a3a;
-            --form-control-bg: #2a2a2a;
-            --form-control-border: #555;
-            --toggle-slider-bg: #555;
-            --pre-bg: #2a2a2a;
-            --tool-item-bg: #2a2a2a;
-            --tool-item-hover-bg: #3a3a3a;
+            --primary-color: #5d7ec9; --secondary-color: #2a3f6c; --bg-color: #121212;
+            --text-color: #e0e0e0; --border-color: #444; --chat-bg: #1e1e1e;
+            --user-msg-bg: #1a3152; --assistant-msg-bg: #2a2a2a;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.3); --accordion-header-bg: #2a2a2a;
+            --modal-bg: rgba(0, 0, 0, 0.7); --modal-content-bg: #1e1e1e;
+            --btn-secondary-bg: #3a3a3a; --form-control-bg: #2a2a2a;
+            --form-control-border: #555; --toggle-slider-bg: #555;
+            --pre-bg: #2a2a2a; --tool-item-bg: #2a2a2a; --tool-item-hover-bg: #3a3a3a;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color);
             transition: background-color 0.3s ease, color 0.3s ease;
         }
-
-        .app {
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* Sidebar */
+        .app { display: flex; height: 100vh; overflow: hidden; }
         .sidebar {
-            width: var(--sidebar-width);
-            background-color: var(--chat-bg);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
+            width: var(--sidebar-width); background-color: var(--chat-bg);
+            border-right: 1px solid var(--border-color); display: flex;
+            flex-direction: column; overflow-y: auto;
         }
-
         .tools-panel, .connection-panel, .settings-panel {
-            padding: 15px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 15px; border-bottom: 1px solid var(--border-color);
         }
-
-        .tools-list {
-            margin-top: 10px;
-        }
-
+        .tools-list { margin-top: 10px; }
         .tool-item {
-            padding: 8px 12px;
-            background-color: var(--tool-item-bg);
-            border-radius: 4px;
-            margin-bottom: 8px;
-            cursor: pointer;
+            padding: 8px 12px; background-color: var(--tool-item-bg);
+            border-radius: 4px; margin-bottom: 8px; cursor: pointer;
         }
-
-        .tool-item:hover {
-            background-color: var(--tool-item-hover-bg);
-        }
-
-        /* Chat container */
+        .tool-item:hover { background-color: var(--tool-item-hover-bg); }
         .chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            flex: 1; display: flex; flex-direction: column; overflow: hidden;
         }
-
         .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            background-color: var(--chat-bg);
+            flex: 1; overflow-y: auto; padding: 20px; background-color: var(--chat-bg);
         }
-
         .message {
-            margin-bottom: 15px;
-            max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            position: relative;
-            line-height: 1.5;
+            margin-bottom: 15px; max-width: 80%; padding: 12px 16px;
+            border-radius: 18px; position: relative; line-height: 1.5;
             animation: fadeIn 0.3s ease-in-out;
         }
-
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
         .user-message {
-            background-color: var(--user-msg-bg);
-            margin-left: auto;
-            border-bottom-right-radius: 4px;
-            align-self: flex-end;
+            background-color: var(--user-msg-bg); margin-left: auto;
+            border-bottom-right-radius: 4px; align-self: flex-end;
         }
-
         .assistant-message {
-            background-color: var(--assistant-msg-bg);
-            margin-right: auto;
-            border-bottom-left-radius: 4px;
-            align-self: flex-start;
+            background-color: var(--assistant-msg-bg); margin-right: auto;
+            border-bottom-left-radius: 4px; align-self: flex-start;
         }
-
         .system-message {
             background-color: var(--assistant-msg-bg);
             border-left: 3px solid var(--primary-color);
-            border-radius: 4px;
-            max-width: 100%;
-            color: var(--text-color);
+            border-radius: 4px; max-width: 100%; color: var(--text-color);
         }
-
         .tool-message {
             background-color: var(--assistant-msg-bg);
             border-left: 3px solid var(--secondary-color);
-            border-radius: 4px;
-            max-width: 100%;
-            font-family: monospace;
+            border-radius: 4px; max-width: 100%; font-family: monospace;
             white-space: pre-wrap;
         }
-
         .chat-input {
-            display: flex;
-            padding: 15px;
-            background-color: var(--chat-bg);
+            display: flex; padding: 15px; background-color: var(--chat-bg);
             border-top: 1px solid var(--border-color);
         }
-
         .chat-input textarea {
-            flex: 1;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            padding: 12px;
-            resize: none;
-            height: 40px;
-            font-family: inherit;
-            background-color: var(--form-control-bg);
-            color: var(--text-color);
+            flex: 1; border: 1px solid var(--border-color); border-radius: 4px;
+            padding: 12px; resize: none; height: 40px; font-family: inherit;
+            background-color: var(--form-control-bg); color: var(--text-color);
         }
-
         .chat-input button {
-            margin-left: 10px;
-            padding: 0 20px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            margin-left: 10px; padding: 0 20px; background-color: var(--primary-color);
+            color: white; border: none; border-radius: 4px; cursor: pointer;
         }
-
-        .chat-input button:hover {
-            background-color: var(--secondary-color);
-        }
-
-        /* Typing indicator animation */
+        .chat-input button:hover { background-color: var(--secondary-color); }
         @keyframes typingAnimation {
-            0% { opacity: 0.2; }
-            50% { opacity: 1; }
-            100% { opacity: 0.2; }
+            0% { opacity: 0.2; } 50% { opacity: 1; } 100% { opacity: 0.2; }
         }
-
-        .typing-indicator .dot {
-            animation: typingAnimation 1.5s infinite;
-        }
-
-        .typing-indicator .dot:nth-child(1) {
-            animation-delay: 0s;
-        }
-
-        .typing-indicator .dot:nth-child(2) {
-            animation-delay: 0.5s;
-        }
-
-        .typing-indicator .dot:nth-child(3) {
-            animation-delay: 1s;
-        }
-
-        /* Modal */
+        .typing-indicator .dot { animation: typingAnimation 1.5s infinite; }
+        .typing-indicator .dot:nth-child(1) { animation-delay: 0s; }
+        .typing-indicator .dot:nth-child(2) { animation-delay: 0.5s; }
+        .typing-indicator .dot:nth-child(3) { animation-delay: 1s; }
         .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--modal-bg);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--modal-bg); display: flex;
+            justify-content: center; align-items: center; z-index: 1000;
         }
-
         .modal-content {
-            background-color: var(--modal-content-bg);
-            padding: 20px;
-            border-radius: 8px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            background-color: var(--modal-content-bg); padding: 20px;
+            border-radius: 8px; max-width: 500px; width: 90%; max-height: 80vh;
+            overflow-y: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }
-
         .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 15px;
         }
-
-        .modal-header h3 {
-            margin: 0;
-        }
-
+        .modal-header h3 { margin: 0; }
         .modal-close {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text-color);
+            background: none; border: none; font-size: 20px;
+            cursor: pointer; color: var(--text-color);
         }
-
         .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 20px;
-            gap: 10px;
+            display: flex; justify-content: flex-end; margin-top: 20px; gap: 10px;
         }
-
         .btn {
-            padding: 8px 16px;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-            font-weight: 500;
+            padding: 8px 16px; border-radius: 4px; border: none;
+            cursor: pointer; font-weight: 500;
         }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-secondary {
-            background-color: var(--btn-secondary-bg);
-            color: var(--text-color);
-        }
-
-        /* Form controls */
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-secondary { background-color: var(--btn-secondary-bg); color: var(--text-color); }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
         .form-control {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid var(--form-control-border);
-            border-radius: 4px;
-            font-size: 14px;
-            background-color: var(--form-control-bg);
+            width: 100%; padding: 8px 12px; border: 1px solid var(--form-control-border);
+            border-radius: 4px; font-size: 14px; background-color: var(--form-control-bg);
             color: var(--text-color);
         }
-
-        /* Toggle switch */
         .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
+            position: relative; display: inline-block; width: 44px; height: 24px;
         }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--toggle-slider-bg);
-            transition: .4s;
-            border-radius: 24px;
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--toggle-slider-bg); transition: .4s; border-radius: 24px;
         }
-
         .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px;
+            bottom: 3px; background-color: white; transition: .4s; border-radius: 50%;
         }
-
-        input:checked + .toggle-slider {
-            background-color: var(--primary-color);
-        }
-        
-        input:checked + .toggle-slider:before {
-            transform: translateX(20px);
-        }
-
-        /* Status indicators */
+        input:checked + .toggle-slider { background-color: var(--primary-color); }
+        input:checked + .toggle-slider:before { transform: translateX(20px); }
         .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
+            display: inline-block; width: 10px; height: 10px;
+            border-radius: 50%; margin-right: 8px;
         }
-
-        .status-connected {
-            background-color: #4CAF50;
-        }
-
-        .status-disconnected {
-            background-color: #F44336;
-        }
-
+        .status-connected { background-color: #4CAF50; }
+        .status-disconnected { background-color: #F44336; }
         .status-connecting {
-            background-color: #FFC107;
-            animation: blink 1s infinite;
+            background-color: #FFC107; animation: blink 1s infinite;
         }
-
         @keyframes blink {
-            0% { opacity: 0.4; }
-            50% { opacity: 1; }
-            100% { opacity: 0.4; }
+            0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; }
         }
-
-        /* Accordion styles */
         .accordion {
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            margin-bottom: 15px;
+            border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 15px;
         }
-
         .accordion-header {
-            padding: 12px 15px;
-            background-color: var(--accordion-header-bg);
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 12px 15px; background-color: var(--accordion-header-bg);
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center;
         }
-
         .accordion-content {
-            padding: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
+            padding: 0; max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
         }
-
-        .accordion-content.open {
-            padding: 15px;
-            max-height: 500px;
-        }
-
-        /* Code display */
+        .accordion-content.open { padding: 15px; max-height: 500px; }
         pre {
-            background-color: var(--pre-bg);
-            padding: 10px;
-            border-radius: 4px;
-            overflow: auto;
+            background-color: var(--pre-bg); padding: 10px;
+            border-radius: 4px; overflow: auto;
         }
-
-        /* Responsive styles */
         @media (max-width: 768px) {
-            .app {
-                flex-direction: column;
-            }
-            
+            .app { flex-direction: column; }
             .sidebar {
-                width: 100%;
-                height: auto;
-                max-height: 40%;
-                border-right: none;
-                border-bottom: 1px solid var(--border-color);
+                width: 100%; height: auto; max-height: 40%;
+                border-right: none; border-bottom: 1px solid var(--border-color);
             }
-            
-            .message {
-                max-width: 90%;
-            }
+            .message { max-width: 90%; }
         }
     </style>
 </head>
@@ -490,7 +241,6 @@
                         <div class="form-group">
                             <label for="model-selection">Model</label>
                             <select id="model-selection" class="form-control">
-                                <!-- Free models (no API key required) -->
                                 <optgroup label="Free Models (No API Key Required)">
                                     <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Instruct (Free)</option>
                                     <option value="meta-llama/llama-2-70b-chat:free">Llama 2 70B Chat (Free)</option>
@@ -498,7 +248,6 @@
                                     <option value="meta-llama/llama-2-13b-chat:free">Llama 2 13B Chat (Free)</option>
                                     <option value="openchat/openchat-7b:free">OpenChat 7B (Free)</option>
                                 </optgroup>
-                                <!-- Premium models (API key required) -->
                                 <optgroup label="Premium Models (API Key Required)">
                                     <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
                                     <option value="anthropic/claude-3-opus">Claude 3 Opus</option>
@@ -545,7 +294,6 @@
         </div>
     </div>
 
-    <!-- Tool approval modal -->
     <div id="tool-approval-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
@@ -571,7 +319,6 @@
     </div>
 
     <script>
-        // Main application class
         class MCPClient {
             constructor() {
                 this.mcpServerUrl = '';
@@ -591,27 +338,22 @@
                 this.selectedModel = localStorage.getItem('selectedModel') || 'mistralai/mistral-7b-instruct:free';
                 this.systemPrompt = localStorage.getItem('systemPrompt') || 'You are a helpful AI assistant with access to tools. Use tools when appropriate to fulfill user requests.';
                 
-                // Load settings from localStorage
                 this.loadSettings();
                 
                 // UI elements
                 this.elements = {
-                    // Connection elements
                     serverUrl: document.getElementById('server-url'),
                     messageEndpoint: document.getElementById('message-endpoint'),
                     connectButton: document.getElementById('connect-button'),
                     connectionStatus: document.getElementById('connection-status-text'),
                     statusIndicator: document.querySelector('.status-indicator'),
                     
-                    // Chat elements
                     chatMessages: document.getElementById('chat-messages'),
                     userInput: document.getElementById('user-input'),
                     sendButton: document.getElementById('send-button'),
                     
-                    // Tools elements
                     toolsList: document.getElementById('tools-list'),
                     
-                    // Settings elements
                     openRouterApiKey: document.getElementById('openrouter-api-key'),
                     modelSelection: document.getElementById('model-selection'),
                     systemPrompt: document.getElementById('system-prompt'),
@@ -619,7 +361,6 @@
                     darkModeToggle: document.getElementById('dark-mode-toggle'),
                     saveSettings: document.getElementById('save-settings'),
                     
-                    // Modal elements
                     toolApprovalModal: document.getElementById('tool-approval-modal'),
                     toolName: document.getElementById('tool-name'),
                     toolArgs: document.getElementById('tool-args'),
@@ -627,21 +368,15 @@
                     denyToolButton: document.getElementById('deny-tool'),
                     modalClose: document.querySelector('.modal-close'),
                     
-                    // Accordion elements
                     accordionHeaders: document.querySelectorAll('.accordion-header'),
                     accordionContents: document.querySelectorAll('.accordion-content')
                 };
                 
-                // Initialize event listeners
                 this.initEventListeners();
-                
-                // Initialize dark mode
                 this.initDarkMode();
             }
             
-            // Load settings from localStorage
             loadSettings() {
-                // Initialize form values with saved settings
                 document.getElementById('openrouter-api-key').value = this.openRouterApiKey;
                 document.getElementById('model-selection').value = this.selectedModel;
                 document.getElementById('system-prompt').value = this.systemPrompt;
@@ -651,7 +386,6 @@
                 this.darkMode = localStorage.getItem('darkMode') === 'true';
             }
             
-            // Save settings to localStorage
             saveSettings() {
                 this.openRouterApiKey = this.elements.openRouterApiKey.value;
                 this.selectedModel = this.elements.modelSelection.value;
@@ -665,28 +399,22 @@
                 localStorage.setItem('autoApproveTools', this.autoApproveTools);
                 localStorage.setItem('darkMode', this.darkMode);
                 
-                // Apply dark mode
                 this.applyDarkMode();
-                
                 this.addSystemMessage('Settings saved successfully.');
             }
             
-            // Initialize dark mode
             initDarkMode() {
-                // Set initial state based on localStorage
                 if (this.darkMode) {
                     document.documentElement.setAttribute('data-theme', 'dark');
                     this.elements.darkModeToggle.checked = true;
                 }
                 
-                // Add event listener for immediate toggle without saving
                 this.elements.darkModeToggle.addEventListener('change', () => {
                     this.darkMode = this.elements.darkModeToggle.checked;
                     this.applyDarkMode();
                 });
             }
             
-            // Apply dark mode based on current setting
             applyDarkMode() {
                 if (this.darkMode) {
                     document.documentElement.setAttribute('data-theme', 'dark');
@@ -695,21 +423,12 @@
                 }
             }
             
-            // Initialize all event listeners
             initEventListeners() {
-                // Connection button
-                this.elements.connectButton.addEventListener('click', () => {
-                    if (this.connected) {
-                        this.disconnect();
-                    } else {
-                        this.connect();
-                    }
-                });
+                this.elements.connectButton.addEventListener('click', () => 
+                    this.connected ? this.disconnect() : this.connect());
                 
-                // Send message button
                 this.elements.sendButton.addEventListener('click', () => this.sendUserMessage());
                 
-                // Input keypress - send on Enter without shift
                 this.elements.userInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -717,15 +436,12 @@
                     }
                 });
                 
-                // Save settings button
                 this.elements.saveSettings.addEventListener('click', () => this.saveSettings());
                 
-                // Tool approval modal buttons
                 this.elements.approveToolButton.addEventListener('click', () => this.handleToolApproval(true));
                 this.elements.denyToolButton.addEventListener('click', () => this.handleToolApproval(false));
                 this.elements.modalClose.addEventListener('click', () => this.hideToolApprovalModal());
                 
-                // Accordion toggles
                 this.elements.accordionHeaders.forEach(header => {
                     header.addEventListener('click', () => {
                         const content = header.nextElementSibling;
@@ -736,7 +452,6 @@
                 });
             }
             
-            // Connect to MCP server via SSE
             connect() {
                 this.mcpServerUrl = this.elements.serverUrl.value;
                 this.messageEndpoint = this.elements.messageEndpoint.value;
@@ -746,10 +461,8 @@
                     return;
                 }
                 
-                // Validate server URL to prevent potential SSRF attacks
                 try {
                     const url = new URL(this.mcpServerUrl);
-                    // Ensure the URL is using http or https protocol
                     if (!['http:', 'https:'].includes(url.protocol)) {
                         throw new Error('Invalid protocol');
                     }
@@ -758,37 +471,26 @@
                     return;
                 }
                 
-                // Update UI to show connecting state
                 this.updateConnectionStatus('connecting', 'Connecting...');
                 
                 try {
-                    // Initialize SSE connection
                     this.eventSource = new EventSource(this.mcpServerUrl);
                     
-                    // Set up event listeners
                     this.eventSource.onopen = () => {
                         this.connected = true;
                         this.updateConnectionStatus('connected', 'Connected');
                         this.addSystemMessage('Connected to MCP server.');
                         
-                        // Send initialization request
                         this.sendMcpRequest({
                             method: 'initialize',
                             params: {
-                                capabilities: {
-                                    tools: {}
-                                },
-                                clientInfo: {
-                                    name: 'Web MCP Client',
-                                    version: '1.0.0'
-                                }
+                                capabilities: { tools: {} },
+                                clientInfo: { name: 'Web MCP Client', version: '1.0.0' }
                             }
                         });
                     };
                     
-                    this.eventSource.onmessage = (event) => {
-                        this.handleServerMessage(event);
-                    };
+                    this.eventSource.onmessage = (event) => this.handleServerMessage(event);
                     
                     this.eventSource.onerror = (error) => {
                         console.error('SSE connection error:', error);
@@ -802,7 +504,6 @@
                 }
             }
             
-            // Disconnect from MCP server
             disconnect() {
                 if (this.eventSource) {
                     this.eventSource.close();
@@ -814,19 +515,16 @@
                 this.elements.connectButton.textContent = 'Connect';
                 this.addSystemMessage('Disconnected from MCP server.');
                 
-                // Clear tools list
                 this.tools = [];
                 this.updateToolsList();
             }
             
-            // Update connection status in UI
             updateConnectionStatus(state, text) {
                 this.elements.connectionStatus.textContent = text;
                 this.elements.statusIndicator.className = 'status-indicator status-' + state;
                 this.elements.connectButton.textContent = state === 'connected' ? 'Disconnect' : 'Connect';
             }
             
-            // Handle messages from the MCP server
             handleServerMessage(event) {
                 let message;
                 try {
@@ -838,32 +536,25 @@
                 
                 console.log('Received MCP message:', message);
                 
-                // Handle different message types
                 if (message.result && message.id) {
-                    // This is a response to one of our requests
                     this.handleResponseMessage(message);
                 } else if (message.method && !message.id) {
-                    // This is a notification from the server
                     this.handleNotificationMessage(message);
                 } else if (message.error) {
-                    // This is an error response
                     console.error('MCP error:', message.error);
                     this.addSystemMessage(`MCP Error: ${message.error.message}`, 'error');
                 }
             }
             
-            // Handle response messages from server
             handleResponseMessage(message) {
                 const { id, result } = message;
                 
-                // Look up the original request
                 const pendingRequest = this.messageQueue.find(req => req.id === id);
                 if (!pendingRequest) {
                     console.warn('Received response for unknown request:', id);
                     return;
                 }
                 
-                // Handle different response types
                 switch (pendingRequest.method) {
                     case 'initialize':
                         this.handleInitializeResponse(result);
@@ -878,17 +569,14 @@
                         console.log('Received response for', pendingRequest.method, ':', result);
                 }
                 
-                // Remove from queue
                 this.messageQueue = this.messageQueue.filter(req => req.id !== id);
             }
             
-            // Handle notification messages from server
             handleNotificationMessage(message) {
                 const { method, params } = message;
                 
                 switch (method) {
                     case 'notifications/tools/list_changed':
-                        // Tools list has changed, refresh it
                         this.listTools();
                         break;
                     case 'notifications/logging/message':
@@ -901,21 +589,17 @@
                 }
             }
             
-            // Handle initialization response
             handleInitializeResponse(result) {
                 console.log('Initialization successful:', result);
                 this.addSystemMessage('MCP Server initialized successfully.');
                 
-                // Send initialized notification
                 this.sendMcpNotification({
                     method: 'initialized'
                 });
                 
-                // Get list of tools
                 this.listTools();
             }
             
-            // Handle tools list response
             handleToolsListResponse(result) {
                 if (result && result.tools) {
                     this.tools = result.tools;
@@ -924,7 +608,6 @@
                 }
             }
             
-            // Handle tool call response
             handleToolCallResponse(requestId, result) {
                 const pendingCall = this.pendingToolCalls[requestId];
                 if (!pendingCall) {
@@ -932,7 +615,6 @@
                     return;
                 }
                 
-                // Extract tool content text
                 let toolResult = '';
                 if (result.content && result.content.length > 0) {
                     toolResult = result.content
@@ -941,27 +623,21 @@
                         .join('\n');
                 }
                 
-                // Sanitize the tool result to prevent XSS
                 toolResult = this.sanitizeHTML(toolResult);
                 
-                // Log tool result
                 this.addToolResultMessage(pendingCall.name, toolResult);
                 
-                // Continue conversation with AI
                 this.continueConversationWithToolResult(pendingCall, toolResult, result.isError);
                 
-                // Clean up
                 delete this.pendingToolCalls[requestId];
             }
             
-            // List available tools
             listTools() {
                 this.sendMcpRequest({
                     method: 'tools/list'
                 });
             }
             
-            // Update tools list in UI
             updateToolsList() {
                 const toolsList = this.elements.toolsList;
                 toolsList.innerHTML = '';
@@ -975,7 +651,6 @@
                     const toolItem = document.createElement('div');
                     toolItem.className = 'tool-item';
                     
-                    // Sanitize tool name and description
                     const safeName = this.sanitizeHTML(tool.name);
                     const safeDescription = this.sanitizeHTML(tool.description || 'No description available');
                     
@@ -985,16 +660,13 @@
                     `;
                     toolsList.appendChild(toolItem);
                     
-                    // Add click event to show tool details
                     toolItem.addEventListener('click', () => {
-                        // Sanitize and format tool schema
                         const safeSchema = this.sanitizeHTML(JSON.stringify(tool.inputSchema, null, 2));
                         alert(`Tool: ${safeName}\n\nSchema: ${safeSchema}`);
                     });
                 });
             }
             
-            // Helper method to sanitize HTML to prevent XSS
             sanitizeHTML(text) {
                 if (!text) return '';
                 const temp = document.createElement('div');
@@ -1002,7 +674,6 @@
                 return temp.innerHTML;
             }
             
-            // Send a request to the MCP server
             sendMcpRequest(request) {
                 if (!this.connected) {
                     this.addSystemMessage('Error: Not connected to MCP server.', 'error');
@@ -1016,19 +687,15 @@
                     ...request
                 };
                 
-                // Add to pending requests queue
                 this.messageQueue.push({
                     id,
                     method: request.method,
                     timestamp: Date.now()
                 });
                 
-                // Send via POST to message endpoint
                 fetch(new URL(this.messageEndpoint, this.mcpServerUrl).href, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(jsonRpcRequest)
                 }).catch(error => {
                     console.error('Error sending MCP request:', error);
@@ -1038,97 +705,66 @@
                 return id;
             }
             
-            // Send a notification to the MCP server
             sendMcpNotification(notification) {
-                if (!this.connected) {
-                    return;
-                }
+                if (!this.connected) return;
                 
                 const jsonRpcNotification = {
                     jsonrpc: '2.0',
                     ...notification
                 };
                 
-                // Send via POST to message endpoint
                 fetch(new URL(this.messageEndpoint, this.mcpServerUrl).href, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(jsonRpcNotification)
                 }).catch(error => {
                     console.error('Error sending MCP notification:', error);
                 });
             }
             
-            // Send a user message
             async sendUserMessage() {
                 const userInput = this.elements.userInput.value.trim();
                 if (!userInput) return;
                 
-                // Clear input
                 this.elements.userInput.value = '';
-                
-                // Add message to UI
                 this.addUserMessage(userInput);
-                
-                // Add to chat history
                 this.chatHistory.push({ role: 'user', content: userInput });
-                
-                // Show typing indicator
                 this.showTypingIndicator();
                 
                 try {
-                    // Send to LLM API
                     const llmResponse = await this.sendToLLM(userInput);
-                    
-                    // Hide typing indicator
                     this.hideTypingIndicator();
-                    
-                    // Process LLM response
                     this.processLLMResponse(llmResponse);
                 } catch (error) {
-                    // Hide typing indicator
                     this.hideTypingIndicator();
-                    
                     console.error('Error getting LLM response:', error);
                     this.addSystemMessage('Error: Failed to get AI response.', 'error');
                 }
             }
             
-            // Process LLM response, handling both text and tool calls
             processLLMResponse(response) {
-                // Handle different response formats based on provider
                 if (response.choices && response.choices.length > 0) {
-                    // OpenAI/OpenRouter-style response
                     const message = response.choices[0].message;
                     
-                    // Check if the response has tool calls
                     if (message.tool_calls && message.tool_calls.length > 0) {
-                        // Handle tool calls
                         const toolCall = message.tool_calls[0];
                         this.handleToolCall(message, toolCall);
                     } else {
-                        // Simple text response
                         const messageContent = message.content;
                         this.addAssistantMessage(messageContent);
                         this.chatHistory.push({ role: 'assistant', content: messageContent });
                     }
                 } else if (response.content) {
-                    // Handle direct content format
                     this.addAssistantMessage(response.content);
                     this.chatHistory.push({ role: 'assistant', content: response.content });
                 } else {
-                    // Unexpected format
                     console.error('Unexpected LLM response format:', response);
                     this.addSystemMessage('Error: Received unexpected response format from LLM.', 'error');
                 }
             }
             
-            // Handle tool call from LLM
             handleToolCall(message, toolCall) {
                 try {
-                    // Extract tool information
                     const toolName = toolCall.function.name;
                     let toolArgs;
                     
@@ -1138,14 +774,12 @@
                         toolArgs = toolCall.function.arguments;
                     }
                     
-                    // Find tool in available tools
                     const tool = this.tools.find(t => t.name === toolName);
                     if (!tool) {
                         this.addSystemMessage(`Error: Tool "${toolName}" is not available.`, 'error');
                         return;
                     }
                     
-                    // Store message for later continuation
                     const pendingToolCall = {
                         name: toolName,
                         args: toolArgs,
@@ -1154,10 +788,8 @@
                     };
                     
                     if (this.autoApproveTools) {
-                        // Auto-approve the tool call
                         this.executeToolCall(pendingToolCall);
                     } else {
-                        // Show approval modal
                         this.showToolApprovalModal(pendingToolCall);
                     }
                 } catch (error) {
@@ -1166,12 +798,9 @@
                 }
             }
             
-            // Execute a tool call
             executeToolCall(toolCall) {
-                // Add message indicating the tool call
                 this.addSystemMessage(`Executing tool: ${toolCall.name}`);
                 
-                // Call the tool via MCP
                 const requestId = this.sendMcpRequest({
                     method: 'tools/call',
                     params: {
@@ -1180,15 +809,12 @@
                     }
                 });
                 
-                // Store reference to this call
                 if (requestId) {
                     this.pendingToolCalls[requestId] = toolCall;
                 }
             }
             
-            // Continue conversation after tool call
             continueConversationWithToolResult(toolCall, toolResult, isError) {
-                // Add both the message and tool result to chat history
                 this.chatHistory.push({
                     role: 'assistant',
                     content: toolCall.message.content || 'I need to use a tool to help with this.',
@@ -1208,7 +834,6 @@
                     content: toolResult
                 });
                 
-                // Get a follow-up response from the LLM
                 this.showTypingIndicator();
                 
                 this.sendToLLM(null, true).then(response => {
@@ -1221,12 +846,9 @@
                 });
             }
             
-            // Send message to LLM through OpenRouter
             async sendToLLM(userMessage, isFollowUp = false) {
-                // Check if the selected model is a free model
                 const isUsingFreeModel = this.selectedModel.includes(':free');
                 
-                // If using a paid model, we need an API key
                 if (!isUsingFreeModel && !this.openRouterApiKey) {
                     throw new Error('OpenRouter API key not set. Please configure it in settings or select a free model.');
                 }
@@ -1234,26 +856,21 @@
                 let messages;
                 
                 if (isFollowUp) {
-                    // Use the existing chat history for a follow-up
                     messages = this.chatHistory;
                 } else {
-                    // Create a new conversation with the user message
                     messages = [
                         { role: 'system', content: this.systemPrompt }
                     ];
                     
-                    // Add chat history context if available
                     if (this.chatHistory.length > 0) {
                         messages = messages.concat(this.chatHistory);
                     }
                     
-                    // Add the new user message if provided
                     if (userMessage) {
                         messages.push({ role: 'user', content: userMessage });
                     }
                 }
                 
-                // Prepare tools data for the API
                 const toolsData = this.tools.map(tool => ({
                     type: 'function',
                     function: {
@@ -1263,14 +880,12 @@
                     }
                 }));
                 
-                // Make OpenRouter API request
                 const headers = {
                     'Content-Type': 'application/json',
                     'HTTP-Referer': window.location.href,
                     'X-Title': 'MCP Client Web App'
                 };
                 
-                // Only add Authorization header if we have an API key
                 if (this.openRouterApiKey) {
                     headers['Authorization'] = `Bearer ${this.openRouterApiKey}`;
                 }
@@ -1296,47 +911,36 @@
                 return await response.json();
             }
             
-            // UI utility methods
-            
-            // Add a user message to the chat
             addUserMessage(message) {
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message user-message';
-                // Sanitize user message to prevent XSS
                 messageElement.textContent = message;
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
-            // Add an assistant message to the chat
             addAssistantMessage(message) {
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message assistant-message';
-                // Sanitize assistant message to prevent XSS
                 messageElement.textContent = message;
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
-            // Add a system message to the chat
             addSystemMessage(message, type = 'info') {
                 const messageElement = document.createElement('div');
                 messageElement.className = `message system-message ${type}`;
-                // Sanitize system message to prevent XSS
                 messageElement.textContent = message;
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
-            // Add a tool result message to the chat
             addToolResultMessage(toolName, result) {
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message tool-message';
                 
-                // Sanitize tool name and result
                 const safeName = this.sanitizeHTML(toolName);
                 
-                // Create elements instead of using innerHTML
                 const titleEl = document.createElement('strong');
                 titleEl.textContent = `Tool Result (${safeName}):`;
                 
@@ -1348,7 +952,6 @@
                 this.scrollToBottom();
             }
             
-            // Show the typing indicator
             showTypingIndicator() {
                 const indicator = document.createElement('div');
                 indicator.className = 'message assistant-message typing-indicator';
@@ -1358,50 +961,32 @@
                 this.scrollToBottom();
             }
             
-            // Hide the typing indicator
             hideTypingIndicator() {
                 const indicator = document.getElementById('typing-indicator');
-                if (indicator) {
-                    indicator.remove();
-                }
+                if (indicator) indicator.remove();
             }
             
-            // Scroll to bottom of chat
             scrollToBottom() {
                 this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
             }
             
-            // Tool approval modal methods
-            
-            // Show the tool approval modal
             showToolApprovalModal(toolCall) {
-                // Set tool details
                 this.elements.toolName.textContent = toolCall.name;
                 this.elements.toolArgs.textContent = JSON.stringify(toolCall.args, null, 2);
-                
-                // Store the current tool call for the approval handlers
                 this.currentToolCall = toolCall;
-                
-                // Show modal
                 this.elements.toolApprovalModal.style.display = 'flex';
             }
             
-            // Hide the tool approval modal
             hideToolApprovalModal() {
                 this.elements.toolApprovalModal.style.display = 'none';
                 this.currentToolCall = null;
             }
             
-            // Handle tool approval/denial
             handleToolApproval(approved) {
                 if (approved && this.currentToolCall) {
-                    // Execute the tool call
                     this.executeToolCall(this.currentToolCall);
                 } else {
-                    // Tool denied, inform the user
                     this.addSystemMessage('Tool execution denied by user.');
-                    
-                    // Add a generic message and continue conversation
                     this.addAssistantMessage("I apologize, but I'm unable to use the tool to help with your request. Is there another way I can assist you?");
                     this.chatHistory.push({ 
                         role: 'assistant', 
@@ -1409,12 +994,10 @@
                     });
                 }
                 
-                // Hide modal
                 this.hideToolApprovalModal();
             }
         }
 
-        // Initialize the application
         document.addEventListener('DOMContentLoaded', () => {
             window.mcpClient = new MCPClient();
         });
