@@ -1,21 +1,3 @@
-# Helper function to notify about tools after initialization
-async def notify_tools_after_initialization():
-    """Send a notification to trigger the client to request the tools list"""
-    logger.info("Waiting a moment before sending tools notification...")
-    await asyncio.sleep(0.5)  # Small delay to ensure client has processed initialization
-    
-    # Send a notification that will trigger the client to request the tools list
-    notification = {
-        "jsonrpc": "2.0",
-        "method": "notifications/tools/list_changed"
-    }
-    
-    logger.info("Sending tools notification after initialization")
-    await broadcast_notification(notification)
-    
-    # For debugging, also log the tools list
-    logger.info(f"Tool list being broadcasted: {len(tools)} tools available")
-
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,9 +11,6 @@ from typing import Dict, Any, AsyncGenerator
 logging.basicConfig(level=logging.DEBUG, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("mcp-server")
-
-# Enable detailed logging
-logging.getLogger().setLevel(logging.DEBUG)
 
 # Create FastAPI app
 app = FastAPI()
@@ -117,6 +96,19 @@ def calculate(operation, a, b):
     else:
         raise ValueError(f"Unknown operation: {operation}")
 
+# Helper function to send a message to all connections
+async def broadcast_message(message):
+    if isinstance(message, dict):
+        message = json.dumps(message)
+    
+    logger.info(f"Broadcasting message: {message}")
+    for conn_id, queue in connections.items():
+        try:
+            await queue.put(message)
+            logger.debug(f"Sent message to connection {conn_id}")
+        except Exception as e:
+            logger.error(f"Error sending to connection {conn_id}: {str(e)}")
+
 # SSE endpoint
 @app.get("/sse")
 async def sse_endpoint(request: Request):
@@ -130,48 +122,31 @@ async def sse_endpoint(request: Request):
     queue = asyncio.Queue()
     connections[connection_id] = queue
     
-    # Log current connection state
-    connection_count = len(connections)
-    logger.info(f"Active connections: {connection_count}")
-    for conn_id in connections:
-        logger.info(f"- Connection {conn_id}")
+    # Log connection information
+    logger.info(f"Active connections: {len(connections)}")
     
     async def event_generator() -> AsyncGenerator[str, None]:
         try:
             # Initial keep-alive comment
             yield ":\n\n"
             
-            # Send a test message to verify SSE is working
-            test_message = json.dumps({"jsonrpc": "2.0", "method": "notifications/debug", "params": {"message": "SSE Connection Established"}})
-            yield f"data: {test_message}\n\n"
-            logger.info(f"Sent test message to connection {connection_id}")
-            
             # Send heartbeats and wait for events
             while True:
-                # Either process an event from the queue or send a heartbeat after timeout
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=25)
                     if event is None:  # None is our signal to close
-                        logger.info(f"Received close signal for connection {connection_id}")
+                        logger.info(f"Closing connection {connection_id}")
                         break
-                    
                     logger.debug(f"Sending event to connection {connection_id}: {event}")
                     yield f"data: {event}\n\n"
                 except asyncio.TimeoutError:
                     # No events for a while, send a heartbeat
-                    logger.debug(f"Sending heartbeat to connection {connection_id}")
                     yield ":\n\n"
-                except Exception as e:
-                    logger.error(f"Error in event processing for connection {connection_id}: {str(e)}")
-                    # Continue to keep the connection alive
-        except asyncio.CancelledError:
-            logger.info(f"SSE connection {connection_id} cancelled")
         except Exception as e:
             logger.error(f"Error in SSE connection {connection_id}: {str(e)}")
         finally:
             # Clean up
             if connection_id in connections:
-                logger.info(f"Removing connection {connection_id} from active connections")
                 del connections[connection_id]
             logger.info(f"SSE connection {connection_id} closed")
     
@@ -187,20 +162,18 @@ async def sse_endpoint(request: Request):
         }
     )
 
-# Add these routes to handle both /messages and the root path for messaging
+# Message endpoint - handle messages at both /messages and root path
 @app.post("/messages")
-@app.post("/")  # Also handle messages at the root path for better compatibility
+@app.post("/")
 async def messages_endpoint(request: Request):
     try:
         # Get the request data
         data = await request.json()
-        logger.debug(f"Received raw message: {json.dumps(data)}")
+        logger.info(f"Received message: {json.dumps(data)}")
         
         method = data.get("method")
         params = data.get("params", {})
         req_id = data.get("id")
-        
-        logger.info(f"Processing method: {method}, id: {req_id}")
         
         # Create response structure
         response = {"jsonrpc": "2.0"}
@@ -209,9 +182,9 @@ async def messages_endpoint(request: Request):
         
         # Handle different method types
         if method == "initialize":
-            logger.debug("Handling initialize request")
-            # Simple response with tools capability explicitly set to empty object
-            # This follows the exact pattern in the client's initialization request
+            logger.info("Handling initialize request")
+            
+            # Respond with server capabilities
             response["result"] = {
                 "serverInfo": {
                     "name": "calculator-server",
@@ -221,26 +194,40 @@ async def messages_endpoint(request: Request):
                     "tools": {}
                 }
             }
-            logger.debug(f"Initialize response: {json.dumps(response)}")
             
+            # Start a task to notify about tools after a short delay
+            # This will work even if the client doesn't send an "initialized" notification
+            asyncio.create_task(auto_notify_tools())
+            
+            # Return response immediately
+            result = JSONResponse(content=response)
+            logger.info(f"Sent initialize response: {json.dumps(response)}")
+            return result
+        
         elif method == "initialized":
-            # Handle initialized notification (no response needed)
-            logger.debug("Received initialized notification")
+            logger.info("Received initialized notification")
             
-            # Since this notification doesn't expect a response, return an empty JSON object
-            # but immediately after, check if we should send a tools/list notification
-            asyncio.create_task(notify_tools_after_initialization())
+            # After getting initialized notification, immediately send tools list changed notification
+            # and queue up sending a tools list to client
+            asyncio.create_task(notify_tools_list_changed())
+            
+            # Return empty response for notification
             return JSONResponse(content={})
         
         elif method == "tools/list":
-            logger.debug("Handling tools/list request")
+            logger.info("Handling tools/list request")
+            
+            # Respond with tools list
             response["result"] = {
                 "tools": tools
             }
-            logger.debug(f"Tools list response: {json.dumps(response)}")
-        
+            
+            logger.info(f"Sending tools list response with {len(tools)} tools")
+            return JSONResponse(content=response)
         
         elif method == "tools/call":
+            logger.info("Handling tools/call request")
+            
             tool_name = params.get("name")
             arguments = params.get("arguments", {})
             
@@ -258,7 +245,9 @@ async def messages_endpoint(request: Request):
                     ],
                     "isError": False
                 }
+                logger.info(f"Tool call successful: {tool_name}({a}, {b}) = {result}")
             except Exception as e:
+                logger.error(f"Tool call error: {str(e)}")
                 response["result"] = {
                     "content": [
                         {
@@ -272,13 +261,13 @@ async def messages_endpoint(request: Request):
         elif method == "close":
             # Handle close request
             response["result"] = {}
-            # Clean up connections
+            # Signal all connections to close
             for conn_id in list(connections.keys()):
-                if conn_id in connections:
-                    await connections[conn_id].put(None)  # Signal to close
+                await connections[conn_id].put(None)
         
         else:
             # Method not supported
+            logger.warning(f"Unsupported method: {method}")
             response["error"] = {
                 "code": -32601,
                 "message": f"Method not found: {method}"
@@ -300,69 +289,74 @@ async def messages_endpoint(request: Request):
             status_code=500
         )
 
-# Helper function to broadcast a notification to all connected clients
-async def broadcast_notification(notification):
-    """
-    Send a notification to all connected clients.
+# Helper function to automatically notify about tools after initialization
+async def auto_notify_tools():
+    """Send tools notification even if client doesn't follow protocol correctly"""
+    logger.info("Starting auto notification sequence for tools")
     
-    Args:
-        notification: Either a dict or a string containing the JSON notification
-    """
-    if isinstance(notification, dict):
-        json_notification = json.dumps(notification)
-    else:
-        json_notification = notification
-        
-    logger.info(f"Broadcasting notification: {json_notification}")
+    # Wait a bit for the client to process the initialization
+    await asyncio.sleep(1)
     
-    if not connections:
-        logger.warning("No active connections to broadcast to")
-        return
-        
-    for conn_id, queue in connections.items():
-        logger.debug(f"Sending to connection {conn_id}")
-        try:
-            await queue.put(json_notification)
-        except Exception as e:
-            logger.error(f"Error sending to connection {conn_id}: {str(e)}")
+    # First, send a tools list changed notification
+    notification = {
+        "jsonrpc": "2.0",
+        "method": "notifications/tools/list_changed"
+    }
+    
+    logger.info("Sending automatic tools/list_changed notification")
+    await broadcast_message(notification)
+    
+    # Wait a moment for the client to potentially request the tools list
+    await asyncio.sleep(0.5)
+    
+    # If client still hasn't requested tools, send a direct list
+    # with a fake response ID (this is non-standard but helps with problematic clients)
+    tools_list = {
+        "jsonrpc": "2.0",
+        "id": 100,  # Using a likely unused ID
+        "result": {
+            "tools": tools
+        }
+    }
+    
+    logger.info(f"Sending direct tools list with {len(tools)} tools")
+    await broadcast_message(tools_list)
+    
+    # For even more aggressive clients, also send a second message with ID 2
+    # (which is typically what clients use for tools/list)
+    tools_list2 = {
+        "jsonrpc": "2.0", 
+        "id": 2,  # Many clients use ID 2 for tools/list
+        "result": {
+            "tools": tools
+        }
+    }
+    
+    logger.info("Sending additional tools list with ID 2")
+    await broadcast_message(tools_list2)
 
+# Debug endpoint to view tools
+@app.get("/debug/tools")
+async def debug_tools():
+    return {
+        "tools": tools,
+        "connections": len(connections)
+    }
+
+# Health check endpoint
 @app.get("/health")
 async def health():
     return {
         "status": "healthy",
-        "connections": len(connections)
-    }
-
-# Helper function to send initial tools info after connection
-async def send_initial_tools_info(queue):
-    # Wait a short time to ensure connection is established
-    await asyncio.sleep(1)
-    
-    try:
-        # Send tools list as a special message
-        tools_info = {
-            "jsonrpc": "2.0",
-            "method": "notifications/tools/list_changed"
-        }
-        logger.info("Sending initial tools notification to new connection")
-        await queue.put(json.dumps(tools_info))
-    except Exception as e:
-        logger.error(f"Error sending initial tools info: {str(e)}")
-
-# Add a debug endpoint to show available tools
-@app.get("/debug/tools")
-async def debug_tools():
-    connections_info = {conn_id: queue.qsize() for conn_id, queue in connections.items()}
-    return {
-        "tools": tools,
-        "connections": connections_info,
-        "connection_count": len(connections)
+        "connections": len(connections),
+        "tools_count": len(tools)
     }
 
 # Run the server
 if __name__ == "__main__":
     logger.info("Starting MCP server on port 8000")
-    logger.info(f"Server has {len(tools)} tools available:")
+    logger.info(f"Server has {len(tools)} tools available")
     for tool in tools:
         logger.info(f" - {tool['name']}: {tool['description']}")
+        
     uvicorn.run(app, host="0.0.0.0", port=8000)
