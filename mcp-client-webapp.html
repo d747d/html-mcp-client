@@ -7,7 +7,7 @@
     <style>
         :root {
             --primary-color: #4b6cb7; --secondary-color: #182848; --bg-color: #f9f9f9;
-            --text-color: #333; --sidebar-width: 300px; --border-color: #ddd;
+            --text-color: #333; --sidebar-width: 280px; --border-color: #ddd;
             --chat-bg: #fff; --user-msg-bg: #e6f2ff; --assistant-msg-bg: #f0f0f0;
             --shadow: 0 2px 10px rgba(0, 0, 0, 0.1); --accordion-header-bg: #f8f8f8;
             --modal-bg: rgba(0, 0, 0, 0.5); --modal-content-bg: white;
@@ -37,12 +37,13 @@
             flex-direction: column; overflow-y: auto;
         }
         .tools-panel, .connection-panel, .settings-panel {
-            padding: 15px; border-bottom: 1px solid var(--border-color);
+            padding: 12px 10px; border-bottom: 1px solid var(--border-color);
         }
-        .tools-list { margin-top: 10px; }
+        .tools-list { margin-top: 8px; }
         .tool-item {
-            padding: 8px 12px; background-color: var(--tool-item-bg);
-            border-radius: 4px; margin-bottom: 8px; cursor: pointer;
+            padding: 6px 10px; background-color: var(--tool-item-bg);
+            border-radius: 4px; margin-bottom: 6px; cursor: pointer;
+            font-size: 0.9em;
         }
         .tool-item:hover { background-color: var(--tool-item-hover-bg); }
         .chat-container {
@@ -128,71 +129,115 @@
         }
         .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-secondary { background-color: var(--btn-secondary-bg); color: var(--text-color); }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em; }
         .form-control {
-            width: 100%; padding: 8px 12px; border: 1px solid var(--form-control-border);
-            border-radius: 4px; font-size: 14px; background-color: var(--form-control-bg);
+            width: 100%; padding: 6px 10px; border: 1px solid var(--form-control-border);
+            border-radius: 4px; font-size: 13px; background-color: var(--form-control-bg);
             color: var(--text-color);
         }
+        
+        /* Compact toggles */
+        .toggle-container {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .toggle-container label { margin-bottom: 0; }
         .toggle-switch {
-            position: relative; display: inline-block; width: 44px; height: 24px;
+            position: relative; display: inline-block; width: 36px; height: 20px;
         }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .toggle-slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: var(--toggle-slider-bg); transition: .4s; border-radius: 24px;
+            background-color: var(--toggle-slider-bg); transition: .3s; border-radius: 20px;
         }
         .toggle-slider:before {
-            position: absolute; content: ""; height: 18px; width: 18px; left: 3px;
-            bottom: 3px; background-color: white; transition: .4s; border-radius: 50%;
+            position: absolute; content: ""; height: 16px; width: 16px; left: 2px;
+            bottom: 2px; background-color: white; transition: .3s; border-radius: 50%;
         }
         input:checked + .toggle-slider { background-color: var(--primary-color); }
-        input:checked + .toggle-slider:before { transform: translateX(20px); }
+        input:checked + .toggle-slider:before { transform: translateX(16px); }
+        
+        /* Improved status indicators */
         .status-indicator {
             display: inline-block; width: 10px; height: 10px;
             border-radius: 50%; margin-right: 8px;
         }
-        .status-connected { background-color: #4CAF50; }
-        .status-disconnected { background-color: #F44336; }
-        .status-connecting {
+        .status-indicator.connected { background-color: #4CAF50; }
+        .status-indicator.disconnected { background-color: #F44336; }
+        .status-indicator.connecting {
             background-color: #FFC107; animation: blink 1s infinite;
+        }
+        .status-container {
+            display: flex; align-items: center; margin-top: 8px;
+            font-size: 0.9em; padding: 4px 8px; border-radius: 4px;
+            background-color: var(--form-control-bg); border: 1px solid var(--form-control-border);
         }
         @keyframes blink {
             0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; }
         }
+        
+        /* Improved accordion */
         .accordion {
-            border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 15px;
+            border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 10px;
         }
         .accordion-header {
-            padding: 12px 15px; background-color: var(--accordion-header-bg);
+            padding: 8px 12px; background-color: var(--accordion-header-bg);
             cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.95em;
         }
+        .accordion-header h3 { margin: 0; font-size: 1em; }
         .accordion-content {
             padding: 0; max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
         }
-        .accordion-content.open { padding: 15px; max-height: 500px; }
-        pre {
-            background-color: var(--pre-bg); padding: 10px;
-            border-radius: 4px; overflow: auto;
+        .accordion-content.open { padding: 10px; max-height: 600px; overflow-y: auto; }
+        
+        /* Form grid layout */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
         }
+        .form-grid .form-group {
+            margin-bottom: 8px;
+        }
+        
+        /* Compact code display */
+        pre {
+            background-color: var(--pre-bg); padding: 8px;
+            border-radius: 4px; overflow: auto; font-size: 0.9em;
+            max-height: 200px;
+        }
+        
+        /* Better loading indicator */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading {
+            animation: spin 2s linear infinite;
+        }
+        
+        /* Responsive design improvements */
         @media (max-width: 768px) {
             .app { flex-direction: column; }
             .sidebar {
                 width: 100%; height: auto; max-height: 40%;
                 border-right: none; border-bottom: 1px solid var(--border-color);
+                min-height: 150px;
             }
             .message { max-width: 90%; }
+            .form-grid { grid-template-columns: 1fr; }
         }
         
-        /* Add new styles for the refresh button animation */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        /* Tool execution animation */
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
         }
-        
-        .loading {
-            animation: spin 2s linear infinite;
+        .executing {
+            animation: pulse 2s infinite;
         }
     </style>
 </head>
@@ -214,8 +259,10 @@
                             <label for="message-endpoint">Message Endpoint</label>
                             <input type="text" id="message-endpoint" class="form-control" value="/messages" placeholder="/messages">
                         </div>
+                        
                         <button id="connect-button" class="btn btn-primary">Connect</button>
-                        <div class="connection-status" style="margin-top: 10px;">
+                        
+                        <div class="status-container">
                             <div class="status-indicator status-disconnected"></div>
                             <span id="connection-status-text">Disconnected</span>
                         </div>
@@ -228,7 +275,7 @@
                     <h3>Available Tools</h3>
                     <span class="chevron">▼</span>
                 </div>
-                <div class="accordion-content open" id="tools-content">
+                <div class="accordion-content" id="tools-content">
                     <div class="tools-panel">
                         <div id="tools-list" class="tools-list">
                             <p>No tools available. Connect to an MCP server first.</p>
@@ -248,36 +295,40 @@
                             <label for="openrouter-api-key">OpenRouter API Key</label>
                             <input type="password" id="openrouter-api-key" class="form-control" placeholder="Enter your OpenRouter API key">
                         </div>
+                        
                         <div class="form-group">
                             <label for="model-selection">Model</label>
-                            <div style="display: flex; gap: 8px;">
+                            <div style="display: flex; gap: 4px;">
                                 <select id="model-selection" class="form-control">
-                                    <!-- Options will be populated dynamically -->
                                     <option value="">Loading models...</option>
                                 </select>
-                                <button id="refresh-models" class="btn btn-secondary" title="Refresh Models List" style="min-width: 40px;">
+                                <button id="refresh-models" class="btn btn-secondary" title="Refresh Models List" style="min-width: 34px; padding: 0;">
                                     ↻
                                 </button>
                             </div>
                         </div>
+                        
                         <div class="form-group">
                             <label for="system-prompt">System Prompt</label>
-                            <textarea id="system-prompt" class="form-control" rows="3">You are a helpful AI assistant with access to tools. Use tools when appropriate to fulfill user requests.</textarea>
+                            <textarea id="system-prompt" class="form-control" rows="2">You are a helpful AI assistant with access to tools. Use tools when appropriate to fulfill user requests.</textarea>
                         </div>
-                        <div class="form-group">
-                            <label>Auto-approve Tool Usage</label>
+                        
+                        <div class="toggle-container">
+                            <label for="auto-approve-toggle">Auto-approve Tool Usage</label>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="auto-approve-toggle">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
-                        <div class="form-group">
-                            <label>Dark Mode</label>
+                        
+                        <div class="toggle-container">
+                            <label for="dark-mode-toggle">Dark Mode</label>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="dark-mode-toggle">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
+                        
                         <button id="save-settings" class="btn btn-primary">Save Settings</button>
                     </div>
                 </div>
@@ -324,7 +375,8 @@
     <script>
         class MCPClient {
             constructor() {
-                this.mcpServerUrl = '';
+                // Set SSE as the only transport type
+                this.sseServerUrl = '';
                 this.messageEndpoint = '';
                 this.eventSource = null;
                 this.connected = false;
@@ -472,7 +524,7 @@
                 const modelSelect = this.elements.modelSelection;
                 modelSelect.disabled = true;
                 
-                // Set button to loading state if it exists
+                // Set button to loading state
                 if (this.elements.refreshModels) {
                     this.elements.refreshModels.disabled = true;
                     this.elements.refreshModels.innerHTML = '⟳';
@@ -615,20 +667,24 @@
             }
             
             connect() {
-                this.mcpServerUrl = this.elements.serverUrl.value;
+                this.connectSSE();
+            }
+            
+            connectSSE() {
+                this.sseServerUrl = this.elements.serverUrl.value;
                 this.messageEndpoint = this.elements.messageEndpoint.value;
                 
-                console.log(`[MCP] Attempting to connect to server: ${this.mcpServerUrl}`);
+                console.log(`[MCP] Attempting to connect to server: ${this.sseServerUrl}`);
                 console.log(`[MCP] Message endpoint: ${this.messageEndpoint}`);
                 
-                if (!this.mcpServerUrl) {
+                if (!this.sseServerUrl) {
                     console.error('[MCP] Connection error: No server URL provided');
                     this.addSystemMessage('Error: Please enter a server URL.', 'error');
                     return;
                 }
                 
                 try {
-                    const url = new URL(this.mcpServerUrl);
+                    const url = new URL(this.sseServerUrl);
                     if (!['http:', 'https:'].includes(url.protocol)) {
                         console.error(`[MCP] Connection error: Invalid protocol: ${url.protocol}`);
                         throw new Error('Invalid protocol');
@@ -645,7 +701,7 @@
                 
                 try {
                     console.log('[MCP] Creating EventSource connection');
-                    this.eventSource = new EventSource(this.mcpServerUrl);
+                    this.eventSource = new EventSource(this.sseServerUrl);
                     
                     this.eventSource.onopen = () => {
                         this.connected = true;
@@ -679,6 +735,7 @@
             
             disconnect() {
                 console.log('[MCP] Disconnecting from server');
+                
                 if (this.eventSource) {
                     this.eventSource.close();
                     this.eventSource = null;
@@ -713,6 +770,10 @@
                     return;
                 }
                 
+                this.processServerMessage(message);
+            }
+            
+            processServerMessage(message) {
                 console.log('[MCP] Parsed message:', message);
                 
                 if (message.result && message.id) {
@@ -777,7 +838,7 @@
                 console.log('[MCP] Server capabilities:', result.capabilities);
                 console.log('[MCP] Server info:', result.serverInfo);
                 
-                this.addSystemMessage('MCP Server initialized successfully.');
+                this.addSystemMessage(`Connected to ${result.serverInfo.name} v${result.serverInfo.version}`);
                 
                 console.log('[MCP] Sending initialized notification');
                 this.sendMcpNotification({
@@ -799,6 +860,14 @@
                     });
                     this.updateToolsList();
                     this.addSystemMessage(`Found ${this.tools.length} available tools.`);
+                    
+                    // Auto-expand tools panel if tools are available
+                    if (this.tools.length > 0) {
+                        const toolsContent = document.getElementById('tools-content');
+                        if (!toolsContent.classList.contains('open')) {
+                            document.getElementById('tools-header').click();
+                        }
+                    }
                 } else {
                     console.warn('[MCP] Received empty or invalid tools list response:', result);
                 }
@@ -868,7 +937,7 @@
                     
                     toolItem.innerHTML = `
                         <strong>${safeName}</strong>
-                        <p>${safeDescription}</p>
+                        <p style="margin: 4px 0 0 0; font-size: 0.9em;">${safeDescription}</p>
                     `;
                     toolsList.appendChild(toolItem);
                     
@@ -909,7 +978,8 @@
                     timestamp: Date.now()
                 });
                 
-                const url = new URL(this.messageEndpoint, this.mcpServerUrl).href;
+                // Handle SSE transport (POST request)
+                const url = new URL(this.messageEndpoint, this.sseServerUrl).href;
                 console.log(`[MCP] Sending to endpoint: ${url}`);
                 
                 fetch(url, {
@@ -943,7 +1013,7 @@
                     ...notification
                 };
                 
-                fetch(new URL(this.messageEndpoint, this.mcpServerUrl).href, {
+                fetch(new URL(this.messageEndpoint, this.sseServerUrl).href, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(jsonRpcNotification)
@@ -1031,6 +1101,11 @@
             executeToolCall(toolCall) {
                 this.addSystemMessage(`Executing tool: ${toolCall.name}`);
                 
+                // Add executing class to the system message
+                const systemMessages = this.elements.chatMessages.querySelectorAll('.system-message');
+                const lastSystemMessage = systemMessages[systemMessages.length - 1];
+                lastSystemMessage.classList.add('executing');
+                
                 const requestId = this.sendMcpRequest({
                     method: 'tools/call',
                     params: {
@@ -1045,6 +1120,11 @@
             }
             
             continueConversationWithToolResult(toolCall, toolResult, isError) {
+                // Remove executing class from system messages
+                document.querySelectorAll('.system-message.executing').forEach(el => {
+                    el.classList.remove('executing');
+                });
+                
                 this.chatHistory.push({
                     role: 'assistant',
                     content: toolCall.message.content || 'I need to use a tool to help with this.',
