@@ -14,6 +14,7 @@
             --btn-secondary-bg: #f0f0f0; --form-control-bg: #fff;
             --form-control-border: #ddd; --toggle-slider-bg: #ccc;
             --pre-bg: #f5f5f5; --tool-item-bg: #f5f5f5; --tool-item-hover-bg: #e9e9e9;
+            --context-warning: #FFA500; --context-danger: #FF4136;
         }
         [data-theme="dark"] {
             --primary-color: #5d7ec9; --secondary-color: #2a3f6c; --bg-color: #121212;
@@ -24,6 +25,7 @@
             --btn-secondary-bg: #3a3a3a; --form-control-bg: #2a2a2a;
             --form-control-border: #555; --toggle-slider-bg: #555;
             --pre-bg: #2a2a2a; --tool-item-bg: #2a2a2a; --tool-item-hover-bg: #3a3a3a;
+            --context-warning: #FFA500; --context-danger: #FF4136;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -80,6 +82,60 @@
             border-radius: 4px; max-width: 100%; font-family: monospace;
             white-space: pre-wrap;
         }
+        /* Context counter styles */
+        .context-counter {
+            display: flex;
+            flex-direction: column;
+            padding: 5px 15px;
+            background-color: var(--chat-bg);
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85em;
+            color: var(--text-color);
+        }
+        .context-bar {
+            height: 4px;
+            background-color: var(--form-control-bg);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 3px;
+        }
+        .context-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 0%;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        .context-fill.warning {
+            background-color: var(--context-warning);
+        }
+        .context-fill.danger {
+            background-color: var(--context-danger);
+        }
+        .context-counter-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .context-label {
+            font-weight: 500;
+        }
+        .context-value {
+            font-family: monospace;
+        }
+        .context-clear {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-size: 0.85em;
+            padding: 0;
+            margin-left: 8px;
+        }
+        .context-clear:hover {
+            text-decoration: underline;
+        }
+        /* End context counter styles */
+        
         .chat-input {
             display: flex; padding: 15px; background-color: var(--chat-bg);
             border-top: 1px solid var(--border-color);
@@ -341,6 +397,21 @@
                     Welcome to the MCP Client. Connect to an MCP server using the settings in the sidebar.
                 </div>
             </div>
+            
+            <!-- Context counter UI element -->
+            <div class="context-counter">
+                <div class="context-counter-top">
+                    <div>
+                        <span class="context-label">Context:</span> 
+                        <span class="context-value"><span id="current-context">0</span>/<span id="max-context">4096</span> tokens</span>
+                    </div>
+                    <button id="clear-context" class="context-clear">Clear conversation</button>
+                </div>
+                <div class="context-bar">
+                    <div id="context-fill" class="context-fill"></div>
+                </div>
+            </div>
+            
             <div class="chat-input">
                 <textarea id="user-input" placeholder="Type your message here..."></textarea>
                 <button id="send-button">Send</button>
@@ -388,6 +459,11 @@
                 this.autoApproveTools = false;
                 this.darkMode = false;
                 
+                // Context tracking properties
+                this.currentContextSize = 0;
+                this.maxContextSize = 4096; // Default, will be updated based on model
+                this.modelToContextMap = {}; // Will store context sizes for known models
+                
                 // OpenRouter settings
                 this.openRouterApiKey = localStorage.getItem('openRouterApiKey') || '';
                 this.selectedModel = localStorage.getItem('selectedModel') || 'anthropic/claude-3-sonnet';
@@ -425,11 +501,20 @@
                     modalClose: document.querySelector('.modal-close'),
                     
                     accordionHeaders: document.querySelectorAll('.accordion-header'),
-                    accordionContents: document.querySelectorAll('.accordion-content')
+                    accordionContents: document.querySelectorAll('.accordion-content'),
+                    
+                    // Context counter elements
+                    currentContext: document.getElementById('current-context'),
+                    maxContext: document.getElementById('max-context'),
+                    contextFill: document.getElementById('context-fill'),
+                    clearContext: document.getElementById('clear-context')
                 };
                 
                 this.initEventListeners();
                 this.initDarkMode();
+                
+                // Initialize context counter
+                this.initContextCounter();
                 
                 // Fetch available models after initialization
                 setTimeout(() => this.fetchAvailableModels(), 500);
@@ -447,6 +532,7 @@
             
             saveSettings() {
                 const oldApiKey = this.openRouterApiKey;
+                const oldModel = this.selectedModel;
                 this.openRouterApiKey = this.elements.openRouterApiKey.value;
                 this.selectedModel = this.elements.modelSelection.value;
                 this.systemPrompt = this.elements.systemPrompt.value;
@@ -466,6 +552,15 @@
                 if (oldApiKey !== this.openRouterApiKey) {
                     this.fetchAvailableModels();
                 }
+                
+                // Update context max size if model changed
+                if (oldModel !== this.selectedModel) {
+                    this.updateMaxContextSize();
+                    this.updateContextCounter();
+                }
+                
+                // Recalculate context size due to system prompt change
+                this.recalculateContextSize();
             }
             
             initDarkMode() {
@@ -485,6 +580,146 @@
                     document.documentElement.setAttribute('data-theme', 'dark');
                 } else {
                     document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            
+            // Initialize context counter functionality
+            initContextCounter() {
+                // Set initial values
+                this.elements.currentContext.textContent = '0';
+                this.elements.maxContext.textContent = this.maxContextSize.toLocaleString();
+                
+                // Include system prompt in initial context
+                if (this.systemPrompt) {
+                    this.currentContextSize += this.estimateTokenCount(this.systemPrompt);
+                    this.updateContextCounter();
+                }
+                
+                // Add event listener for clear context button
+                this.elements.clearContext.addEventListener('click', () => this.clearConversation());
+            }
+            
+            // Estimate token count function - simple approximation
+            estimateTokenCount(text) {
+                if (!text) return 0;
+                
+                // Rough approximation based on GPT tokenization patterns:
+                // 1. ~4 characters per token on average for English
+                // 2. Each separate word is at least 1 token
+                
+                const words = text.trim().split(/\s+/).length;
+                const chars = text.length;
+                
+                // Take the max of character-based and word-based estimation
+                // to ensure we don't underestimate tokens
+                const charEstimate = Math.ceil(chars / 4);
+                
+                return Math.max(words, charEstimate);
+            }
+            
+            // Update context counter UI
+            updateContextCounter() {
+                // Update text values
+                this.elements.currentContext.textContent = this.currentContextSize.toLocaleString();
+                this.elements.maxContext.textContent = this.maxContextSize.toLocaleString();
+                
+                // Calculate percentage and update progress bar
+                const percentage = (this.currentContextSize / this.maxContextSize) * 100;
+                this.elements.contextFill.style.width = `${Math.min(percentage, 100)}%`;
+                
+                // Update visual colors based on context usage
+                this.elements.contextFill.className = 'context-fill';
+                if (percentage > 90) {
+                    this.elements.contextFill.classList.add('danger');
+                    if (percentage > 98) {
+                        this.addSystemMessage('Warning: You are approaching the context limit for this model. Consider clearing the conversation.', 'warning');
+                    }
+                } else if (percentage > 75) {
+                    this.elements.contextFill.classList.add('warning');
+                }
+            }
+            
+            // Update the maximum context size based on selected model
+            updateMaxContextSize() {
+                // Try to get context size from modelToContextMap first
+                if (this.modelToContextMap[this.selectedModel]) {
+                    this.maxContextSize = this.modelToContextMap[this.selectedModel];
+                    return;
+                }
+                
+                // If not in map, check if we can get it from the option element
+                const selectedOption = this.elements.modelSelection.selectedOptions[0];
+                if (selectedOption && selectedOption.dataset.contextLength) {
+                    this.maxContextSize = parseInt(selectedOption.dataset.contextLength, 10);
+                    return;
+                }
+                
+                // If we still don't have it, use default values based on model name patterns
+                if (this.selectedModel.includes('claude-3-opus')) {
+                    this.maxContextSize = 200000;
+                } else if (this.selectedModel.includes('claude-3-sonnet')) {
+                    this.maxContextSize = 200000;
+                } else if (this.selectedModel.includes('claude-3-haiku')) {
+                    this.maxContextSize = 200000;
+                } else if (this.selectedModel.includes('gpt-4')) {
+                    this.maxContextSize = 128000;
+                } else if (this.selectedModel.includes('gpt-3.5')) {
+                    this.maxContextSize = 16000;
+                } else if (this.selectedModel.includes('mistral') || this.selectedModel.includes('llama')) {
+                    this.maxContextSize = 8000;
+                } else {
+                    // Default fallback
+                    this.maxContextSize = 4096; 
+                }
+            }
+            
+            // Recalculate total context size from chat history
+            recalculateContextSize() {
+                let totalTokens = 0;
+                
+                // Add system prompt
+                totalTokens += this.estimateTokenCount(this.systemPrompt);
+                
+                // Add all messages in chat history
+                for (const message of this.chatHistory) {
+                    if (message.content) {
+                        totalTokens += this.estimateTokenCount(message.content);
+                    }
+                    
+                    // Account for tool calls
+                    if (message.tool_calls) {
+                        for (const tool of message.tool_calls) {
+                            totalTokens += this.estimateTokenCount(tool.function.name);
+                            totalTokens += this.estimateTokenCount(tool.function.arguments);
+                        }
+                    }
+                }
+                
+                this.currentContextSize = totalTokens;
+                this.updateContextCounter();
+            }
+            
+            // Clear the conversation and reset context
+            clearConversation() {
+                // Ask for confirmation
+                if (confirm('Are you sure you want to clear the conversation history?')) {
+                    // Clear chat history array
+                    this.chatHistory = [];
+                    
+                    // Clear visual messages except for the welcome message
+                    const messages = Array.from(this.elements.chatMessages.children);
+                    for (let i = messages.length - 1; i >= 0; i--) {
+                        if (!messages[i].classList.contains('system-message') || i > 0) {
+                            messages[i].remove();
+                        }
+                    }
+                    
+                    // Reset context counter (account for system prompt only)
+                    this.currentContextSize = this.estimateTokenCount(this.systemPrompt);
+                    this.updateContextCounter();
+                    
+                    // Add system message
+                    this.addSystemMessage('Conversation cleared.');
                 }
             }
             
@@ -516,6 +751,13 @@
                         const chevron = header.querySelector('.chevron');
                         chevron.textContent = content.classList.contains('open') ? '▼' : '▶';
                     });
+                });
+                
+                // Listen for model selection changes
+                this.elements.modelSelection.addEventListener('change', () => {
+                    this.selectedModel = this.elements.modelSelection.value;
+                    this.updateMaxContextSize();
+                    this.updateContextCounter();
                 });
             }
             
@@ -568,14 +810,23 @@
                     // Process models based on the API response structure
                     const models = data.data || [];
                     
+                    // Clear and rebuild model-to-context map
+                    this.modelToContextMap = {};
+                    
                     models.forEach(model => {
                         const option = document.createElement('option');
                         option.value = model.id;
                         
+                        // Store context length in the dataset and map
+                        if (model.context_length) {
+                            option.dataset.contextLength = model.context_length;
+                            this.modelToContextMap[model.id] = parseInt(model.context_length, 10);
+                        }
+                        
                         // Format display name
                         let displayName = model.name || model.id;
                         if (model.context_length) {
-                            displayName += ` (${model.context_length} tokens)`;
+                            displayName += ` (${model.context_length.toLocaleString()} tokens)`;
                         }
                         
                         option.textContent = displayName;
@@ -601,6 +852,10 @@
                     
                     // Restore previously selected model if it still exists
                     this.restoreSelectedModel();
+                    
+                    // Update max context size based on selected model
+                    this.updateMaxContextSize();
+                    this.updateContextCounter();
                     
                     this.addSystemMessage(`Loaded ${models.length} models from OpenRouter.`);
                 } catch (error) {
@@ -647,22 +902,34 @@
                 const modelSelect = this.elements.modelSelection;
                 modelSelect.innerHTML = `
                     <optgroup label="Free Models (No API Key Required)">
-                        <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Instruct (Free)</option>
-                        <option value="meta-llama/llama-2-70b-chat:free">Llama 2 70B Chat (Free)</option>
-                        <option value="google/gemini-2.5-pro-exp-03-25:free">Google Gemini 2.5 Exp Pro (Free)</option>
-                        <option value="meta-llama/llama-2-13b-chat:free">Llama 2 13B Chat (Free)</option>
-                        <option value="openchat/openchat-7b:free">OpenChat 7B (Free)</option>
+                        <option value="mistralai/mistral-7b-instruct:free" data-context-length="8192">Mistral 7B Instruct (8,192 tokens)</option>
+                        <option value="meta-llama/llama-2-70b-chat:free" data-context-length="4096">Llama 2 70B Chat (4,096 tokens)</option>
+                        <option value="google/gemini-2.5-pro-exp-03-25:free" data-context-length="1000000">Google Gemini 2.5 Exp Pro (1,000,000 tokens)</option>
+                        <option value="meta-llama/llama-2-13b-chat:free" data-context-length="4096">Llama 2 13B Chat (4,096 tokens)</option>
+                        <option value="openchat/openchat-7b:free" data-context-length="8192">OpenChat 7B (8,192 tokens)</option>
                     </optgroup>
                     <optgroup label="Premium Models (API Key Required)">
-                        <option value="openai/gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                        <option value="anthropic/claude-3-opus">Claude 3 Opus</option>
-                        <option value="anthropic/claude-3-sonnet">Claude 3 Sonnet</option>
-                        <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
-                        <option value="google/gemini-pro">Google Gemini Pro</option>
+                        <option value="openai/gpt-3.5-turbo" data-context-length="16384">GPT-3.5 Turbo (16,384 tokens)</option>
+                        <option value="anthropic/claude-3-opus" data-context-length="200000">Claude 3 Opus (200,000 tokens)</option>
+                        <option value="anthropic/claude-3-sonnet" data-context-length="200000">Claude 3 Sonnet (200,000 tokens)</option>
+                        <option value="anthropic/claude-3-haiku" data-context-length="200000">Claude 3 Haiku (200,000 tokens)</option>
+                        <option value="google/gemini-pro" data-context-length="32768">Google Gemini Pro (32,768 tokens)</option>
                     </optgroup>
                 `;
                 
+                // Build model context map from fallback data
+                const options = modelSelect.querySelectorAll('option');
+                this.modelToContextMap = {};
+                
+                options.forEach(option => {
+                    if (option.dataset.contextLength) {
+                        this.modelToContextMap[option.value] = parseInt(option.dataset.contextLength, 10);
+                    }
+                });
+                
                 this.restoreSelectedModel();
+                this.updateMaxContextSize();
+                this.updateContextCounter();
                 this.addSystemMessage('Using fallback model list due to API error.');
             }
             
@@ -906,6 +1173,11 @@
                 
                 this.addToolResultMessage(pendingCall.name, toolResult);
                 
+                // Update context usage - track tool result
+                const toolResultTokens = this.estimateTokenCount(toolResult);
+                this.currentContextSize += toolResultTokens;
+                this.updateContextCounter();
+                
                 console.log('[MCP] Continuing conversation with tool result');
                 this.continueConversationWithToolResult(pendingCall, toolResult, result.isError);
                 
@@ -1028,7 +1300,13 @@
                 
                 this.elements.userInput.value = '';
                 this.addUserMessage(userInput);
+                
+                // Update chat history and context counter
                 this.chatHistory.push({ role: 'user', content: userInput });
+                const userTokens = this.estimateTokenCount(userInput);
+                this.currentContextSize += userTokens;
+                this.updateContextCounter();
+                
                 this.showTypingIndicator();
                 
                 try {
@@ -1048,15 +1326,34 @@
                     
                     if (message.tool_calls && message.tool_calls.length > 0) {
                         const toolCall = message.tool_calls[0];
+                        
+                        // Update context for the assistant message with tool call
+                        const assistantContent = message.content || 'I need to use a tool to help with this.';
+                        const assistantTokens = this.estimateTokenCount(assistantContent);
+                        const toolNameTokens = this.estimateTokenCount(toolCall.function.name);
+                        const toolArgsTokens = this.estimateTokenCount(toolCall.function.arguments);
+                        this.currentContextSize += (assistantTokens + toolNameTokens + toolArgsTokens);
+                        this.updateContextCounter();
+                        
                         this.handleToolCall(message, toolCall);
                     } else {
                         const messageContent = message.content;
                         this.addAssistantMessage(messageContent);
+                        
+                        // Update chat history and context counter
                         this.chatHistory.push({ role: 'assistant', content: messageContent });
+                        const assistantTokens = this.estimateTokenCount(messageContent);
+                        this.currentContextSize += assistantTokens;
+                        this.updateContextCounter();
                     }
                 } else if (response.content) {
                     this.addAssistantMessage(response.content);
+                    
+                    // Update chat history and context counter
                     this.chatHistory.push({ role: 'assistant', content: response.content });
+                    const assistantTokens = this.estimateTokenCount(response.content);
+                    this.currentContextSize += assistantTokens;
+                    this.updateContextCounter();
                 } else {
                     console.error('Unexpected LLM response format:', response);
                     this.addSystemMessage('Error: Received unexpected response format from LLM.', 'error');
@@ -1302,6 +1599,11 @@
                         role: 'assistant', 
                         content: "I apologize, but I'm unable to use the tool to help with your request. Is there another way I can assist you?" 
                     });
+                    
+                    // Update context counter for the assistant response
+                    const assistantTokens = this.estimateTokenCount("I apologize, but I'm unable to use the tool to help with your request. Is there another way I can assist you?");
+                    this.currentContextSize += assistantTokens;
+                    this.updateContextCounter();
                 }
                 
                 this.hideToolApprovalModal();
