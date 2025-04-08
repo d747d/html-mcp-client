@@ -968,7 +968,10 @@
                 
                 try {
                     console.log('[MCP] Creating EventSource connection');
-                    this.eventSource = new EventSource(this.sseServerUrl);
+                    // Add cache-busting parameter to prevent caching of SSE connection
+                    const sseUrl = new URL(this.sseServerUrl);
+                    sseUrl.searchParams.append('t', Date.now());
+                    this.eventSource = new EventSource(sseUrl.href);
                     
                     this.eventSource.onopen = () => {
                         this.connected = true;
@@ -1256,14 +1259,20 @@
                 
                 fetch(url, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
                     body: JSON.stringify(jsonRpcRequest)
                 }).then(response => {
                     if (!response.ok) {
                         console.error(`[MCP] HTTP error: ${response.status} ${response.statusText}`);
                         return response.text().then(text => {
                             console.error('[MCP] Response body:', text);
-                            throw new Error(`HTTP error: ${response.status}`);
+                            throw new Error(`HTTP error: ${response.status} - ${text}`);
                         });
                     }
                     console.log(`[MCP] Request ID ${id} sent successfully, HTTP status: ${response.status}`);
@@ -1271,7 +1280,7 @@
                 }).catch(error => {
                     console.error('[MCP] Error sending request:', error);
                     console.error(`[MCP] Failed request details - ID: ${id}, Method: ${request.method}`);
-                    this.addSystemMessage('Error sending request to MCP server.', 'error');
+                    this.addSystemMessage(`Error sending request to MCP server: ${error.message}`, 'error');
                 });
                 
                 return id;
@@ -1287,7 +1296,13 @@
                 
                 fetch(new URL(this.messageEndpoint, this.sseServerUrl).href, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    credentials: 'same-origin',
                     body: JSON.stringify(jsonRpcNotification)
                 }).catch(error => {
                     console.error('Error sending MCP notification:', error);
