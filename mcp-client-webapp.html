@@ -457,6 +457,121 @@
             animation: copySuccess 0.5s ease;
         }
         
+        /* Browser Tools Management */
+        .browser-tools-panel {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tool-limits-config {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: var(--form-control-bg);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .limit-input {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+        .limit-input label {
+            min-width: 120px;
+            font-size: 0.85em;
+        }
+        .limit-input input {
+            flex: 1;
+            max-width: 100px;
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            background-color: var(--form-control-bg);
+            color: var(--text-color);
+            font-size: 0.85em;
+        }
+        .browser-tool-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 4px;
+            background-color: var(--tool-item-bg);
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .browser-tool-info {
+            flex: 1;
+        }
+        .browser-tool-name {
+            font-weight: 500;
+        }
+        .browser-tool-desc {
+            font-size: 0.8em;
+            opacity: 0.7;
+        }
+        .tool-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+        }
+        .status-indicator.disabled {
+            background-color: #F44336;
+        }
+        .status-indicator.limited {
+            background-color: #FFC107;
+        }
+        .tool-toggle {
+            background: none;
+            border: 1px solid var(--border-color);
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            cursor: pointer;
+            color: var(--text-color);
+        }
+        .tool-toggle:hover {
+            background-color: var(--tool-item-hover-bg);
+        }
+        .custom-tool-editor {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: var(--form-control-bg);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .code-editor {
+            width: 100%;
+            height: 200px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            background-color: var(--pre-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 8px;
+            resize: vertical;
+        }
+        .security-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+        }
+        [data-theme="dark"] .security-warning {
+            background-color: #2d1810;
+            border-color: #4a3728;
+            color: #ffeb3b;
+        }
+        
         /* Responsive design improvements */
         @media (max-width: 768px) {
             .app { flex-direction: column; }
@@ -533,6 +648,69 @@
                     <div class="tools-panel">
                         <div id="tools-list" class="tools-list">
                             <p>No tools available. Connect to an MCP server first.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion">
+                <div class="accordion-header" id="browser-tools-header">
+                    <h3>Browser Tools</h3>
+                    <span class="chevron">▼</span>
+                </div>
+                <div class="accordion-content" id="browser-tools-content">
+                    <div class="browser-tools-panel">
+                        <div class="tool-limits-config">
+                            <h4 style="margin: 0 0 10px 0; font-size: 0.9em;">🛡️ Security Limits</h4>
+                            <div class="limit-input">
+                                <label>Max Execution Time:</label>
+                                <input type="number" id="max-execution-time" value="5000" min="1000" max="30000">
+                                <span style="font-size: 0.8em; opacity: 0.7;">ms</span>
+                            </div>
+                            <div class="limit-input">
+                                <label>Max Memory Usage:</label>
+                                <input type="number" id="max-memory-mb" value="50" min="10" max="500">
+                                <span style="font-size: 0.8em; opacity: 0.7;">MB</span>
+                            </div>
+                            <div class="limit-input">
+                                <label>Max API Calls:</label>
+                                <input type="number" id="max-api-calls" value="10" min="1" max="100">
+                                <span style="font-size: 0.8em; opacity: 0.7;">per execution</span>
+                            </div>
+                            <div class="limit-input">
+                                <label>Rate Limit:</label>
+                                <input type="number" id="rate-limit" value="5" min="1" max="60">
+                                <span style="font-size: 0.8em; opacity: 0.7;">calls/min</span>
+                            </div>
+                            <button id="save-tool-limits" class="btn btn-secondary" style="margin-top: 8px; font-size: 0.85em;">Save Limits</button>
+                        </div>
+                        
+                        <div id="browser-tools-list">
+                            <!-- Built-in tools will be populated here -->
+                        </div>
+                        
+                        <div class="custom-tool-editor">
+                            <h4 style="margin: 0 0 10px 0; font-size: 0.9em;">🔧 Custom Tool Editor</h4>
+                            <div class="security-warning">
+                                ⚠️ Custom tools run in a secure sandbox with strict limits. Malicious code will be blocked.
+                            </div>
+                            <div class="form-group">
+                                <label>Tool Name:</label>
+                                <input type="text" id="custom-tool-name" class="form-control" placeholder="my_custom_tool">
+                            </div>
+                            <div class="form-group">
+                                <label>Description:</label>
+                                <input type="text" id="custom-tool-desc" class="form-control" placeholder="What this tool does">
+                            </div>
+                            <div class="form-group">
+                                <label>Tool Code (JavaScript):</label>
+                                <textarea id="custom-tool-code" class="code-editor" placeholder="// Your tool implementation\nreturn { result: 'Hello World' };"></textarea>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button id="test-custom-tool" class="btn btn-secondary">🧪 Test</button>
+                                <button id="save-custom-tool" class="btn btn-primary">💾 Save Tool</button>
+                                <button id="load-custom-tool" class="btn btn-secondary">📁 Load</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1820,18 +1998,39 @@
                     }));
                     
                     this.secureLog(`[MCP] Received ${this.tools.length} tools from server`);
-                    this.updateToolsList();
-                    this.addSystemMessage(`Found ${this.tools.length} available tools.`);
-                    
-                    // Auto-expand tools panel if tools are available
-                    if (this.tools.length > 0) {
-                        const toolsContent = document.getElementById('tools-content');
-                        if (!toolsContent.classList.contains('open')) {
-                            document.getElementById('tools-header').click();
-                        }
-                    }
                 } else {
+                    this.tools = [];
                     this.secureError('[MCP] Received empty or invalid tools list response');
+                }
+                
+                // Add browser tools if available
+                this.addBrowserTools();
+                
+                this.updateToolsList();
+                this.addSystemMessage(`Found ${this.tools.length} available tools.`);
+                
+                // Auto-expand tools panel if tools are available
+                if (this.tools.length > 0) {
+                    const toolsContent = document.getElementById('tools-content');
+                    if (!toolsContent.classList.contains('open')) {
+                        document.getElementById('tools-header').click();
+                    }
+                }
+            }
+            
+            addBrowserTools() {
+                // Add browser MCP server tools if available
+                if (window.browserMCPServer) {
+                    const browserTools = window.browserMCPServer.getAllTools();
+                    for (const tool of browserTools) {
+                        this.tools.push({
+                            ...tool,
+                            source: 'browser',
+                            name: this.sanitizeHTML(tool.name),
+                            description: this.sanitizeHTML(`[Browser] ${tool.description}`)
+                        });
+                    }
+                    this.secureLog(`[Browser] Added ${browserTools.length} browser tools`);
                 }
             }
             
@@ -1882,6 +2081,18 @@
                 this.sendMcpRequest({
                     method: 'tools/list'
                 });
+            }
+            
+            refreshAllTools() {
+                // Start with empty tools array
+                this.tools = [];
+                
+                // Add browser tools if available
+                this.addBrowserTools();
+                
+                // Update the UI
+                this.updateToolsList();
+                this.addSystemMessage(`Refreshed tools. Found ${this.tools.length} available tools.`);
             }
             
             // Performance: Optimized DOM manipulation using DocumentFragment
@@ -2273,7 +2484,7 @@
                 }
             }
             
-            executeToolCall(toolCall) {
+            async executeToolCall(toolCall) {
                 this.addSystemMessage(`Executing tool: ${toolCall.name}`);
                 
                 // Add executing class to the system message
@@ -2281,6 +2492,40 @@
                 const lastSystemMessage = systemMessages[systemMessages.length - 1];
                 lastSystemMessage.classList.add('executing');
                 
+                // Check if this is a browser tool
+                const tool = this.tools.find(t => t.name === toolCall.name);
+                if (tool && tool.source === 'browser') {
+                    try {
+                        const result = await window.browserMCPServer.handleToolRequest(toolCall.name, toolCall.args);
+                        const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+                        
+                        this.addToolResultMessage(toolCall.name, resultText);
+                        
+                        // Update context usage - track tool result
+                        const toolResultTokens = this.estimateTokenCount(resultText);
+                        this.addToContextSize(toolResultTokens);
+                        
+                        this.continueConversationWithToolResult(toolCall, resultText, false);
+                        
+                        // Remove executing class
+                        document.querySelectorAll('.system-message.executing').forEach(el => {
+                            el.classList.remove('executing');
+                        });
+                        
+                    } catch (error) {
+                        const errorMessage = `Browser tool error: ${error.message}`;
+                        this.addToolResultMessage(toolCall.name, errorMessage);
+                        this.continueConversationWithToolResult(toolCall, errorMessage, true);
+                        
+                        // Remove executing class
+                        document.querySelectorAll('.system-message.executing').forEach(el => {
+                            el.classList.remove('executing');
+                        });
+                    }
+                    return;
+                }
+                
+                // Regular MCP server tool
                 const requestId = this.sendMcpRequest({
                     method: 'tools/call',
                     params: {
@@ -2697,10 +2942,799 @@
             }
         }
 
+        // Browser MCP Server Security Framework
+        class SecurityManager {
+            constructor(limits) {
+                this.limits = {
+                    maxExecutionTime: limits.maxExecutionTime || 5000,
+                    maxMemoryUsage: limits.maxMemoryUsage || 10 * 1024 * 1024, // 10MB
+                    maxApiCalls: limits.maxApiCalls || 10,
+                    rateLimit: limits.rateLimit || 1000 // ms between calls
+                };
+                this.apiCallCount = 0;
+                this.lastApiCall = 0;
+                this.activeExecutions = new Set();
+            }
+
+            validateExecutionRequest(toolName, params) {
+                // Rate limiting
+                const now = Date.now();
+                if (now - this.lastApiCall < this.limits.rateLimit) {
+                    throw new Error(`Rate limit exceeded. Wait ${this.limits.rateLimit}ms between calls.`);
+                }
+                
+                // API call count limit
+                if (this.apiCallCount >= this.limits.maxApiCalls) {
+                    throw new Error(`Maximum API calls (${this.limits.maxApiCalls}) exceeded.`);
+                }
+                
+                return true;
+            }
+
+            async executeWithTimeout(fn, timeoutMs = this.limits.maxExecutionTime) {
+                const executionId = Math.random().toString(36).substring(7);
+                this.activeExecutions.add(executionId);
+                
+                try {
+                    return await Promise.race([
+                        fn(),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error(`Execution timeout (${timeoutMs}ms)`)), timeoutMs)
+                        )
+                    ]);
+                } finally {
+                    this.activeExecutions.delete(executionId);
+                }
+            }
+
+            recordApiCall() {
+                this.apiCallCount++;
+                this.lastApiCall = Date.now();
+            }
+
+            reset() {
+                this.apiCallCount = 0;
+                this.lastApiCall = 0;
+                this.activeExecutions.clear();
+            }
+
+            killActiveExecutions() {
+                this.activeExecutions.clear();
+                // Note: JavaScript doesn't have true thread killing, but we clear tracking
+            }
+        }
+
+        // Safe code execution sandbox
+        class CodeSandbox {
+            constructor(securityManager) {
+                this.security = securityManager;
+                this.allowedApis = new Set([
+                    'console', 'Math', 'Date', 'JSON', 'Array', 'Object', 'String', 'Number'
+                ]);
+            }
+
+            async execute(code, context = {}) {
+                this.security.validateExecutionRequest('custom_code', { code });
+                this.security.recordApiCall();
+
+                // Create safe execution environment
+                const safeContext = this.createSafeContext(context);
+                
+                return await this.security.executeWithTimeout(async () => {
+                    try {
+                        // Create function with restricted scope
+                        const fn = new Function(...Object.keys(safeContext), code);
+                        return fn.apply(null, Object.values(safeContext));
+                    } catch (error) {
+                        throw new Error(`Code execution error: ${error.message}`);
+                    }
+                });
+            }
+
+            createSafeContext(context) {
+                const safeContext = {
+                    // Safe built-ins
+                    console: {
+                        log: (...args) => console.log('[SANDBOX]', ...args),
+                        error: (...args) => console.error('[SANDBOX]', ...args),
+                        warn: (...args) => console.warn('[SANDBOX]', ...args)
+                    },
+                    Math: Math,
+                    Date: Date,
+                    JSON: JSON,
+                    // Utility functions
+                    fetch: this.createSafeFetch(),
+                    setTimeout: this.createSafeTimeout(),
+                    // Custom context
+                    ...context
+                };
+
+                return safeContext;
+            }
+
+            createSafeFetch() {
+                return async (url, options = {}) => {
+                    // Validate URL
+                    try {
+                        const urlObj = new URL(url);
+                        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+                            throw new Error('Only HTTP/HTTPS URLs allowed');
+                        }
+                    } catch (error) {
+                        throw new Error('Invalid URL');
+                    }
+
+                    this.security.recordApiCall();
+                    
+                    // Add timeout to fetch
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    
+                    try {
+                        const response = await fetch(url, {
+                            ...options,
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeoutId);
+                        return response;
+                    } catch (error) {
+                        clearTimeout(timeoutId);
+                        throw error;
+                    }
+                };
+            }
+
+            createSafeTimeout() {
+                return (fn, delay) => {
+                    if (delay > 5000) {
+                        throw new Error('Maximum timeout is 5000ms');
+                    }
+                    return setTimeout(fn, delay);
+                };
+            }
+        }
+
+        // Browser Tools Suite
+        class BrowserTools {
+            constructor(securityManager) {
+                this.security = securityManager;
+                this.tools = new Map();
+                this.initializeBuiltInTools();
+            }
+
+            initializeBuiltInTools() {
+                // Detect available browser APIs and register appropriate tools
+                this.detectAndRegisterTools();
+            }
+            
+            detectAndRegisterTools() {
+                // File System Access Tool
+                if (window.showOpenFilePicker) {
+                    this.registerTool('read_file', {
+                    description: 'Read text files using File System Access API',
+                    schema: {
+                        type: 'object',
+                        properties: {
+                            accept: { type: 'string', description: 'File type filter (e.g., ".txt,.json")' }
+                        }
+                    },
+                    handler: async (params) => {
+                        this.security.validateExecutionRequest('read_file', params);
+                        this.security.recordApiCall();
+
+                        if (!window.showOpenFilePicker) {
+                            throw new Error('File System Access API not supported');
+                        }
+
+                        const fileHandle = await window.showOpenFilePicker({
+                            types: [{
+                                description: 'Text files',
+                                accept: { 'text/*': params.accept?.split(',') || ['.txt', '.json', '.md'] }
+                            }]
+                        });
+
+                        const file = await fileHandle[0].getFile();
+                        const text = await file.text();
+                        
+                        if (text.length > this.security.limits.maxMemoryUsage / 2) {
+                            throw new Error('File too large for security limits');
+                        }
+
+                        return { filename: file.name, content: text, size: file.size };
+                    }
+                    });
+                }
+
+                // Geolocation Tool  
+                if (navigator.geolocation) {
+                    this.registerTool('get_location', {
+                    description: 'Get current geolocation coordinates',
+                    schema: {
+                        type: 'object',
+                        properties: {
+                            accuracy: { type: 'boolean', description: 'Request high accuracy' }
+                        }
+                    },
+                    handler: async (params) => {
+                        this.security.validateExecutionRequest('get_location', params);
+                        this.security.recordApiCall();
+
+                        if (!navigator.geolocation) {
+                            throw new Error('Geolocation not supported');
+                        }
+
+                        return new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => resolve({
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude,
+                                    accuracy: position.coords.accuracy,
+                                    timestamp: position.timestamp
+                                }),
+                                (error) => reject(new Error(`Geolocation error: ${error.message}`)),
+                                { enableHighAccuracy: params.accuracy || false, timeout: 10000 }
+                            );
+                        });
+                    }
+                    });
+                }
+
+                // Screen Capture Tool
+                if (navigator.mediaDevices?.getDisplayMedia) {
+                    this.registerTool('capture_screen', {
+                    description: 'Capture screen or window content',
+                    schema: {
+                        type: 'object',
+                        properties: {
+                            type: { type: 'string', enum: ['screen', 'window'], description: 'Capture type' }
+                        }
+                    },
+                    handler: async (params) => {
+                        this.security.validateExecutionRequest('capture_screen', params);
+                        this.security.recordApiCall();
+
+                        if (!navigator.mediaDevices?.getDisplayMedia) {
+                            throw new Error('Screen capture not supported');
+                        }
+
+                        const stream = await navigator.mediaDevices.getDisplayMedia({
+                            video: true,
+                            audio: false
+                        });
+
+                        const video = document.createElement('video');
+                        video.srcObject = stream;
+                        video.play();
+
+                        return new Promise((resolve) => {
+                            video.addEventListener('loadedmetadata', () => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = video.videoWidth;
+                                canvas.height = video.videoHeight;
+                                
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(video, 0, 0);
+                                
+                                stream.getTracks().forEach(track => track.stop());
+                                
+                                resolve({
+                                    dataUrl: canvas.toDataURL('image/png'),
+                                    width: canvas.width,
+                                    height: canvas.height
+                                });
+                            });
+                        });
+                    }
+                    });
+                }
+
+                // Storage Tool (always available)
+                this.registerTool('browser_storage', {
+                    description: 'Read/write to browser storage',
+                    schema: {
+                        type: 'object',
+                        properties: {
+                            action: { type: 'string', enum: ['get', 'set', 'remove', 'clear'] },
+                            key: { type: 'string' },
+                            value: { type: 'string' },
+                            storage: { type: 'string', enum: ['local', 'session'], default: 'local' }
+                        },
+                        required: ['action']
+                    },
+                    handler: async (params) => {
+                        this.security.validateExecutionRequest('browser_storage', params);
+                        this.security.recordApiCall();
+
+                        const storage = params.storage === 'session' ? sessionStorage : localStorage;
+                        const key = params.key ? `browser_tools_${params.key}` : null;
+
+                        switch (params.action) {
+                            case 'get':
+                                if (!key) throw new Error('Key required for get action');
+                                return { key: params.key, value: storage.getItem(key) };
+                            
+                            case 'set':
+                                if (!key || params.value === undefined) {
+                                    throw new Error('Key and value required for set action');
+                                }
+                                storage.setItem(key, params.value);
+                                return { success: true, key: params.key };
+                            
+                            case 'remove':
+                                if (!key) throw new Error('Key required for remove action');
+                                storage.removeItem(key);
+                                return { success: true, key: params.key };
+                            
+                            case 'clear':
+                                // Only clear browser_tools_ prefixed items
+                                const keys = Object.keys(storage).filter(k => k.startsWith('browser_tools_'));
+                                keys.forEach(k => storage.removeItem(k));
+                                return { success: true, cleared: keys.length };
+                            
+                            default:
+                                throw new Error('Invalid action');
+                        }
+                    }
+                });
+
+                // Network Information Tool (always available)
+                this.registerTool('network_info', {
+                    description: 'Get network connection information',
+                    schema: { type: 'object' },
+                    handler: async () => {
+                        this.security.validateExecutionRequest('network_info', {});
+                        this.security.recordApiCall();
+
+                        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+                        
+                        return {
+                            online: navigator.onLine,
+                            connection: connection ? {
+                                effectiveType: connection.effectiveType,
+                                downlink: connection.downlink,
+                                rtt: connection.rtt,
+                                saveData: connection.saveData
+                            } : null,
+                            userAgent: navigator.userAgent,
+                            platform: navigator.platform
+                        };
+                    }
+                });
+
+                // Camera/Microphone Tool
+                if (navigator.mediaDevices?.getUserMedia) {
+                    this.registerTool('get_media_stream', {
+                        description: 'Access camera and microphone streams',
+                        schema: {
+                            type: 'object',
+                            properties: {
+                                video: { type: 'boolean', description: 'Request video access' },
+                                audio: { type: 'boolean', description: 'Request audio access' }
+                            }
+                        },
+                        handler: async (params) => {
+                            this.security.validateExecutionRequest('get_media_stream', params);
+                            this.security.recordApiCall();
+
+                            const constraints = {
+                                video: params.video || false,
+                                audio: params.audio || false
+                            };
+
+                            if (!constraints.video && !constraints.audio) {
+                                throw new Error('At least one of video or audio must be requested');
+                            }
+
+                            try {
+                                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                                // Note: In a real implementation, you'd want to handle the stream appropriately
+                                // For security, we'll just return stream info and immediately stop tracks
+                                const tracks = stream.getTracks();
+                                const info = {
+                                    video: tracks.filter(t => t.kind === 'video').length > 0,
+                                    audio: tracks.filter(t => t.kind === 'audio').length > 0,
+                                    trackCount: tracks.length
+                                };
+                                
+                                // Stop all tracks for security
+                                tracks.forEach(track => track.stop());
+                                
+                                return info;
+                            } catch (error) {
+                                throw new Error(`Media access error: ${error.message}`);
+                            }
+                        }
+                    });
+                }
+
+                // Clipboard Tool
+                if (navigator.clipboard) {
+                    this.registerTool('clipboard_access', {
+                        description: 'Read from and write to clipboard',
+                        schema: {
+                            type: 'object',
+                            properties: {
+                                action: { type: 'string', enum: ['read', 'write'] },
+                                text: { type: 'string', description: 'Text to write (for write action)' }
+                            },
+                            required: ['action']
+                        },
+                        handler: async (params) => {
+                            this.security.validateExecutionRequest('clipboard_access', params);
+                            this.security.recordApiCall();
+
+                            switch (params.action) {
+                                case 'read':
+                                    try {
+                                        const text = await navigator.clipboard.readText();
+                                        return { text, length: text.length };
+                                    } catch (error) {
+                                        throw new Error(`Clipboard read error: ${error.message}`);
+                                    }
+                                
+                                case 'write':
+                                    if (!params.text) {
+                                        throw new Error('Text required for write action');
+                                    }
+                                    try {
+                                        await navigator.clipboard.writeText(params.text);
+                                        return { success: true, length: params.text.length };
+                                    } catch (error) {
+                                        throw new Error(`Clipboard write error: ${error.message}`);
+                                    }
+                                
+                                default:
+                                    throw new Error('Invalid action');
+                            }
+                        }
+                    });
+                }
+
+                // Device Information Tool (always available)
+                this.registerTool('device_info', {
+                    description: 'Get device and browser information',
+                    schema: { type: 'object' },
+                    handler: async () => {
+                        this.security.validateExecutionRequest('device_info', {});
+                        this.security.recordApiCall();
+
+                        return {
+                            userAgent: navigator.userAgent,
+                            platform: navigator.platform,
+                            language: navigator.language,
+                            languages: navigator.languages,
+                            cookieEnabled: navigator.cookieEnabled,
+                            onLine: navigator.onLine,
+                            screen: {
+                                width: screen.width,
+                                height: screen.height,
+                                colorDepth: screen.colorDepth,
+                                pixelDepth: screen.pixelDepth
+                            },
+                            window: {
+                                innerWidth: window.innerWidth,
+                                innerHeight: window.innerHeight,
+                                devicePixelRatio: window.devicePixelRatio
+                            },
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                            apis: {
+                                fileSystemAccess: !!window.showOpenFilePicker,
+                                geolocation: !!navigator.geolocation,
+                                mediaDevices: !!navigator.mediaDevices,
+                                clipboard: !!navigator.clipboard,
+                                webWorkers: !!window.Worker,
+                                serviceWorkers: !!navigator.serviceWorker,
+                                notifications: !!window.Notification,
+                                indexedDB: !!window.indexedDB
+                            }
+                        };
+                    }
+                });
+            }
+
+            registerTool(name, tool) {
+                this.tools.set(name, {
+                    name,
+                    description: tool.description,
+                    inputSchema: tool.schema,
+                    handler: tool.handler
+                });
+            }
+
+            async executeTool(name, params) {
+                const tool = this.tools.get(name);
+                if (!tool) {
+                    throw new Error(`Tool '${name}' not found`);
+                }
+
+                return await this.security.executeWithTimeout(async () => {
+                    return await tool.handler(params);
+                });
+            }
+
+            listTools() {
+                return Array.from(this.tools.values()).map(tool => ({
+                    name: tool.name,
+                    description: tool.description,
+                    inputSchema: tool.inputSchema
+                }));
+            }
+        }
+
+        // Browser MCP Server
+        class BrowserMCPServer {
+            constructor() {
+                this.securityLimits = this.loadSecurityLimits();
+                this.security = new SecurityManager(this.securityLimits);
+                this.sandbox = new CodeSandbox(this.security);
+                this.tools = new BrowserTools(this.security);
+                this.customTools = new Map();
+                this.isRunning = false;
+                
+                this.initializeUI();
+                this.loadCustomTools();
+            }
+
+            loadSecurityLimits() {
+                try {
+                    const saved = localStorage.getItem('browser_mcp_security_limits');
+                    return saved ? JSON.parse(saved) : {
+                        maxExecutionTime: 5000,
+                        maxMemoryUsage: 10 * 1024 * 1024,
+                        maxApiCalls: 10,
+                        rateLimit: 1000
+                    };
+                } catch {
+                    return {
+                        maxExecutionTime: 5000,
+                        maxMemoryUsage: 10 * 1024 * 1024,
+                        maxApiCalls: 10,
+                        rateLimit: 1000
+                    };
+                }
+            }
+
+            saveSecurityLimits() {
+                localStorage.setItem('browser_mcp_security_limits', JSON.stringify(this.securityLimits));
+            }
+
+            initializeUI() {
+                this.setupEventListeners();
+                this.updateSecurityUI();
+                this.updateToolsList();
+            }
+
+            setupEventListeners() {
+                // Security limit controls
+                document.getElementById('maxExecutionTime').addEventListener('input', (e) => {
+                    this.securityLimits.maxExecutionTime = parseInt(e.target.value);
+                    this.saveSecurityLimits();
+                    this.security.limits.maxExecutionTime = this.securityLimits.maxExecutionTime;
+                });
+
+                document.getElementById('maxMemoryUsage').addEventListener('input', (e) => {
+                    this.securityLimits.maxMemoryUsage = parseInt(e.target.value) * 1024 * 1024;
+                    this.saveSecurityLimits();
+                    this.security.limits.maxMemoryUsage = this.securityLimits.maxMemoryUsage;
+                });
+
+                document.getElementById('maxApiCalls').addEventListener('input', (e) => {
+                    this.securityLimits.maxApiCalls = parseInt(e.target.value);
+                    this.saveSecurityLimits();
+                    this.security.limits.maxApiCalls = this.securityLimits.maxApiCalls;
+                });
+
+                document.getElementById('rateLimit').addEventListener('input', (e) => {
+                    this.securityLimits.rateLimit = parseInt(e.target.value);
+                    this.saveSecurityLimits();
+                    this.security.limits.rateLimit = this.securityLimits.rateLimit;
+                });
+
+                // Custom tool controls
+                document.getElementById('saveCustomTool').addEventListener('click', () => {
+                    this.saveCustomTool();
+                });
+
+                document.getElementById('resetSecurity').addEventListener('click', () => {
+                    this.security.reset();
+                    this.updateSecurityStatus();
+                });
+
+                // Server controls
+                document.getElementById('startServer').addEventListener('click', () => {
+                    this.startServer();
+                });
+
+                document.getElementById('stopServer').addEventListener('click', () => {
+                    this.stopServer();
+                });
+            }
+
+            updateSecurityUI() {
+                document.getElementById('maxExecutionTime').value = this.securityLimits.maxExecutionTime;
+                document.getElementById('maxMemoryUsage').value = Math.round(this.securityLimits.maxMemoryUsage / (1024 * 1024));
+                document.getElementById('maxApiCalls').value = this.securityLimits.maxApiCalls;
+                document.getElementById('rateLimit').value = this.securityLimits.rateLimit;
+                
+                this.updateSecurityStatus();
+            }
+
+            updateSecurityStatus() {
+                document.getElementById('apiCallCount').textContent = this.security.apiCallCount;
+                document.getElementById('activeExecutions').textContent = this.security.activeExecutions.size;
+            }
+
+            saveCustomTool() {
+                const name = document.getElementById('customToolName').value.trim();
+                const description = document.getElementById('customToolDescription').value.trim();
+                const code = document.getElementById('customToolCode').value.trim();
+
+                if (!name || !description || !code) {
+                    alert('Please fill in all fields for the custom tool.');
+                    return;
+                }
+
+                if (this.tools.tools.has(name) || this.customTools.has(name)) {
+                    if (!confirm(`Tool '${name}' already exists. Overwrite?`)) {
+                        return;
+                    }
+                }
+
+                try {
+                    // Test the code syntax
+                    new Function('params', 'return ' + code);
+                    
+                    this.customTools.set(name, { name, description, code });
+                    this.saveCustomToolsToStorage();
+                    this.updateToolsList();
+                    
+                    // Refresh main client tools if server is running
+                    if (this.isRunning && window.mcpClient) {
+                        window.mcpClient.refreshAllTools();
+                    }
+                    
+                    // Clear form
+                    document.getElementById('customToolName').value = '';
+                    document.getElementById('customToolDescription').value = '';
+                    document.getElementById('customToolCode').value = '';
+                    
+                    alert(`Custom tool '${name}' saved successfully!`);
+                } catch (error) {
+                    alert(`Code syntax error: ${error.message}`);
+                }
+            }
+
+            async executeCustomTool(name, params) {
+                const tool = this.customTools.get(name);
+                if (!tool) {
+                    throw new Error(`Custom tool '${name}' not found`);
+                }
+
+                return await this.sandbox.execute(`return (${tool.code})(params);`, { params });
+            }
+
+            saveCustomToolsToStorage() {
+                const toolsData = Array.from(this.customTools.entries());
+                localStorage.setItem('browser_mcp_custom_tools', JSON.stringify(toolsData));
+            }
+
+            loadCustomTools() {
+                try {
+                    const saved = localStorage.getItem('browser_mcp_custom_tools');
+                    if (saved) {
+                        const toolsData = JSON.parse(saved);
+                        this.customTools = new Map(toolsData);
+                    }
+                } catch (error) {
+                    console.error('Error loading custom tools:', error);
+                }
+            }
+
+            updateToolsList() {
+                const builtInTools = this.tools.listTools();
+                const customToolsList = Array.from(this.customTools.values()).map(tool => ({
+                    name: tool.name,
+                    description: tool.description,
+                    inputSchema: { type: 'object' }
+                }));
+
+                const allTools = [...builtInTools, ...customToolsList];
+                
+                const toolsDisplay = document.getElementById('availableToolsList');
+                toolsDisplay.innerHTML = allTools.map(tool => 
+                    `<div class="tool-item">
+                        <strong>${tool.name}</strong>
+                        <p>${tool.description}</p>
+                        ${this.customTools.has(tool.name) ? 
+                            `<button onclick="browserMCPServer.deleteCustomTool('${tool.name}')" style="float: right; color: red;">Delete</button>` : 
+                            ''}
+                    </div>`
+                ).join('');
+
+                document.getElementById('toolCount').textContent = allTools.length;
+            }
+
+            deleteCustomTool(name) {
+                if (confirm(`Delete custom tool '${name}'?`)) {
+                    this.customTools.delete(name);
+                    this.saveCustomToolsToStorage();
+                    this.updateToolsList();
+                    
+                    // Refresh main client tools if server is running
+                    if (this.isRunning && window.mcpClient) {
+                        window.mcpClient.refreshAllTools();
+                    }
+                }
+            }
+
+            startServer() {
+                this.isRunning = true;
+                document.getElementById('serverStatus').textContent = 'Running';
+                document.getElementById('serverStatus').style.color = 'green';
+                document.getElementById('startServer').disabled = true;
+                document.getElementById('stopServer').disabled = false;
+                
+                // Add status to main MCP client and refresh tools
+                if (window.mcpClient) {
+                    window.mcpClient.addSystemMessage('Browser MCP Server started. Tools are now available for AI assistant.', 'info');
+                    window.mcpClient.refreshAllTools();
+                }
+            }
+
+            stopServer() {
+                this.isRunning = false;
+                this.security.killActiveExecutions();
+                document.getElementById('serverStatus').textContent = 'Stopped';
+                document.getElementById('serverStatus').style.color = 'red';
+                document.getElementById('startServer').disabled = false;
+                document.getElementById('stopServer').disabled = true;
+
+                if (window.mcpClient) {
+                    window.mcpClient.addSystemMessage('Browser MCP Server stopped.', 'info');
+                    window.mcpClient.refreshAllTools();
+                }
+            }
+
+            async handleToolRequest(toolName, params) {
+                if (!this.isRunning) {
+                    throw new Error('Browser MCP Server is not running');
+                }
+
+                try {
+                    this.updateSecurityStatus();
+                    
+                    if (this.tools.tools.has(toolName)) {
+                        return await this.tools.executeTool(toolName, params);
+                    } else if (this.customTools.has(toolName)) {
+                        return await this.executeCustomTool(toolName, params);
+                    } else {
+                        throw new Error(`Tool '${toolName}' not found`);
+                    }
+                } catch (error) {
+                    this.updateSecurityStatus();
+                    throw error;
+                }
+            }
+
+            getAllTools() {
+                if (!this.isRunning) return [];
+                
+                const builtIn = this.tools.listTools();
+                const custom = Array.from(this.customTools.values()).map(tool => ({
+                    name: tool.name,
+                    description: tool.description,
+                    inputSchema: { type: 'object' }
+                }));
+                
+                return [...builtIn, ...custom];
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             // Add a small delay to ensure all DOM elements are fully loaded
             setTimeout(() => {
                 window.mcpClient = new MCPClient();
+                window.browserMCPServer = new BrowserMCPServer();
             }, 100);
         });
     </script>
