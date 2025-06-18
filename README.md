@@ -67,7 +67,25 @@ open mcp-client-webapp.html
 ### MCP Server Connection
 - **Server URL**: Your MCP server endpoint (e.g., `http://localhost:8000/sse`)
 - **Message Endpoint**: Message handling path (default: `/messages`)
+- **Connection Mode**: Choose how to handle CORS (see CORS section below)
 - **Auto-approve Tools**: Enable to automatically execute tool calls
+
+### CORS Handling
+Due to browser security, connecting to MCP servers may require CORS configuration:
+
+**Direct Mode** (default):
+- Requires MCP server to send CORS headers
+- Add to your MCP server: `Access-Control-Allow-Origin: *`
+
+**CORS Proxy Mode**:
+- Uses allorigins.win public proxy (automatic)
+- No server configuration needed
+- May have rate limits
+
+**Custom Proxy Mode**:
+- Use your own CORS proxy server
+- Run the included `cors-proxy-example.js`
+- Configure proxy URL in settings
 
 ### Customization
 - **System Prompt**: Customize the AI assistant's behavior
@@ -76,9 +94,9 @@ open mcp-client-webapp.html
 
 ## MCP Server Examples
 
-### Python MCP Server
+### Python MCP Server with CORS
 ```python
-# Example MCP server setup
+# Example MCP server setup with CORS support
 from mcp import Server
 import asyncio
 
@@ -89,7 +107,22 @@ async def get_weather(location: str) -> str:
     return f"Weather in {location}: Sunny, 72°F"
 
 if __name__ == "__main__":
-    asyncio.run(server.run_sse(host="localhost", port=8000))
+    # Enable CORS for web clients
+    asyncio.run(server.run_sse(
+        host="localhost", 
+        port=8000,
+        cors_origins=["*"]  # Allow all origins for development
+    ))
+```
+
+### CORS Proxy Server
+```bash
+# Run the included CORS proxy
+node cors-proxy-example.js 3001
+
+# Then configure client:
+# Connection Mode: Custom Proxy
+# Custom Proxy URL: http://localhost:3001/proxy
 ```
 
 ### Supported MCP Servers
@@ -166,9 +199,10 @@ if __name__ == "__main__":
 ## Troubleshooting
 
 ### Connection Issues
-- **CORS Errors**: Ensure MCP server allows cross-origin requests
+- **CORS Errors**: Use one of the CORS solutions (proxy mode, custom proxy, or server CORS headers)
 - **SSL Mixed Content**: Use HTTPS for both client and server in production
 - **Port Conflicts**: Check if MCP server port is available
+- **Proxy Issues**: Verify proxy server is running and URL is correct
 
 ### Performance Issues
 - **Memory Usage**: Enable chat history pruning in settings

@@ -420,6 +420,21 @@
                             <input type="text" id="message-endpoint" class="form-control" value="/messages" placeholder="/messages">
                         </div>
                         
+                        <div class="form-group">
+                            <label for="connection-mode">Connection Mode</label>
+                            <select id="connection-mode" class="form-control">
+                                <option value="direct">Direct (requires CORS headers)</option>
+                                <option value="proxy">CORS Proxy (allorigins.win)</option>
+                                <option value="custom-proxy">Custom Proxy</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="custom-proxy-group" style="display: none;">
+                            <label for="custom-proxy-url">Custom Proxy URL</label>
+                            <input type="text" id="custom-proxy-url" class="form-control" placeholder="https://your-proxy.com/api/proxy">
+                            <small style="color: var(--text-color); opacity: 0.7;">Proxy should accept target URL as query parameter</small>
+                        </div>
+                        
                         <button id="connect-button" class="btn btn-primary">Connect</button>
                         
                         <div class="status-container">
@@ -600,6 +615,10 @@
                 this.selectedModel = localStorage.getItem('selectedModel') || 'anthropic/claude-3-sonnet';
                 this.systemPrompt = localStorage.getItem('systemPrompt') || 'You are a helpful AI assistant with access to tools. Use tools when appropriate to fulfill user requests.';
                 
+                // CORS handling settings
+                this.connectionMode = localStorage.getItem('connectionMode') || 'direct';
+                this.customProxyUrl = localStorage.getItem('customProxyUrl') || '';
+                
                 this.loadSettings();
                 
                 // UI elements
@@ -609,6 +628,9 @@
                     connectButton: document.getElementById('connect-button'),
                     connectionStatus: document.getElementById('connection-status-text'),
                     statusIndicator: document.querySelector('.status-indicator'),
+                    connectionMode: document.getElementById('connection-mode'),
+                    customProxyUrl: document.getElementById('custom-proxy-url'),
+                    customProxyGroup: document.getElementById('custom-proxy-group'),
                     
                     chatMessages: document.getElementById('chat-messages'),
                     userInput: document.getElementById('user-input'),
@@ -692,6 +714,46 @@
                 }
             }
             
+            // CORS: Show/hide custom proxy input based on connection mode
+            toggleCustomProxyInput() {
+                const isCustomProxy = this.elements.connectionMode.value === 'custom-proxy';
+                this.elements.customProxyGroup.style.display = isCustomProxy ? 'block' : 'none';
+            }
+            
+            // CORS: Build URL with proxy if needed
+            buildProxiedUrl(targetUrl) {
+                switch (this.connectionMode) {
+                    case 'direct':
+                        return targetUrl;
+                    case 'proxy':
+                        // Use allorigins.win as a public CORS proxy
+                        return `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                    case 'custom-proxy':
+                        if (!this.customProxyUrl) {
+                            throw new Error('Custom proxy URL not configured');
+                        }
+                        return `${this.customProxyUrl}?url=${encodeURIComponent(targetUrl)}`;
+                    default:
+                        return targetUrl;
+                }
+            }
+            
+            // CORS: Get appropriate headers for connection mode
+            getCorsHeaders() {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache'
+                };
+                
+                // Only add X-Requested-With for direct connections
+                if (this.connectionMode === 'direct') {
+                    headers['X-Requested-With'] = 'XMLHttpRequest';
+                }
+                
+                return headers;
+            }
+            
             // Security: Enhanced HTML sanitization
             sanitizeHTML(text) {
                 if (!text) return '';
@@ -722,8 +784,13 @@
                 document.getElementById('system-prompt').value = this.systemPrompt;
                 document.getElementById('auto-approve-toggle').checked = localStorage.getItem('autoApproveTools') === 'true';
                 document.getElementById('dark-mode-toggle').checked = localStorage.getItem('darkMode') === 'true';
+                document.getElementById('connection-mode').value = this.connectionMode;
+                document.getElementById('custom-proxy-url').value = this.customProxyUrl;
                 this.autoApproveTools = localStorage.getItem('autoApproveTools') === 'true';
                 this.darkMode = localStorage.getItem('darkMode') === 'true';
+                
+                // Show/hide custom proxy input based on selection
+                this.toggleCustomProxyInput();
             }
             
             saveSettings() {
@@ -749,6 +816,8 @@
                 this.systemPrompt = newSystemPrompt;
                 this.autoApproveTools = this.elements.autoApproveToggle.checked;
                 this.darkMode = this.elements.darkModeToggle.checked;
+                this.connectionMode = this.elements.connectionMode.value;
+                this.customProxyUrl = this.elements.customProxyUrl.value.trim();
                 
                 // Use secure storage for API key
                 this.setSecureItem('openRouterApiKey', this.openRouterApiKey);
@@ -756,8 +825,11 @@
                 localStorage.setItem('systemPrompt', this.systemPrompt);
                 localStorage.setItem('autoApproveTools', this.autoApproveTools);
                 localStorage.setItem('darkMode', this.darkMode);
+                localStorage.setItem('connectionMode', this.connectionMode);
+                localStorage.setItem('customProxyUrl', this.customProxyUrl);
                 
                 this.applyDarkMode();
+                this.toggleCustomProxyInput();
                 this.addSystemMessage('Settings saved successfully.');
                 
                 // Refresh models if API key has changed
@@ -1165,6 +1237,11 @@
                     this.updateContextCounter();
                 });
                 
+                // Listen for connection mode changes
+                addListener(this.elements.connectionMode, 'change', () => {
+                    this.toggleCustomProxyInput();
+                });
+                
                 // Performance: Add cleanup on page unload
                 addListener(window, 'beforeunload', () => this.cleanup());
             }
@@ -1412,7 +1489,15 @@
                     }
                     this.messageEndpoint = rawEndpoint;
                     
+                    // Validate proxy configuration if using custom proxy
+                    if (this.connectionMode === 'custom-proxy' && !this.customProxyUrl) {
+                        throw new Error('Custom proxy URL required for custom proxy mode');
+                    }
+                    
                     this.secureLog(`[MCP] Validated connection parameters`);
+                    if (this.connectionMode !== 'direct') {
+                        this.addSystemMessage(`Using ${this.connectionMode} mode to handle CORS`, 'info');
+                    }
                 } catch (error) {
                     this.secureError('[MCP] Connection error: Invalid URL format', error);
                     this.addSystemMessage(`Error: ${error.message}`, 'error');
@@ -1427,7 +1512,10 @@
                     // Add cache-busting parameter to prevent caching of SSE connection
                     const sseUrl = new URL(this.sseServerUrl);
                     sseUrl.searchParams.append('t', Date.now());
-                    this.eventSource = new EventSource(sseUrl.href);
+                    
+                    // Apply CORS proxy if needed for SSE connection
+                    const finalSseUrl = this.buildProxiedUrl(sseUrl.href);
+                    this.eventSource = new EventSource(finalSseUrl);
                     
                     this.eventSource.onopen = () => {
                         this.connected = true;
@@ -1774,15 +1862,17 @@
                     const url = new URL(this.messageEndpoint, this.sseServerUrl).href;
                     this.secureLog(`[MCP] Sending to endpoint`);
                     
-                    fetch(url, {
+                    // Apply CORS proxy if needed
+                    const proxiedUrl = this.buildProxiedUrl(url);
+                    const corsHeaders = this.getCorsHeaders();
+                    
+                    // Adjust credentials based on connection mode
+                    const credentialsMode = this.connectionMode === 'direct' ? 'same-origin' : 'omit';
+                    
+                    fetch(proxiedUrl, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'Cache-Control': 'no-cache',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        credentials: 'same-origin',
+                        headers: corsHeaders,
+                        credentials: credentialsMode,
                         body: JSON.stringify(jsonRpcRequest)
                     }).then(response => {
                         if (!response.ok) {
@@ -1813,15 +1903,15 @@
                     ...notification
                 };
                 
-                fetch(new URL(this.messageEndpoint, this.sseServerUrl).href, {
+                const notificationUrl = new URL(this.messageEndpoint, this.sseServerUrl).href;
+                const proxiedNotificationUrl = this.buildProxiedUrl(notificationUrl);
+                const corsHeaders = this.getCorsHeaders();
+                const credentialsMode = this.connectionMode === 'direct' ? 'same-origin' : 'omit';
+                
+                fetch(proxiedNotificationUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Cache-Control': 'no-cache',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    credentials: 'same-origin',
+                    headers: corsHeaders,
+                    credentials: credentialsMode,
                     body: JSON.stringify(jsonRpcNotification)
                 }).catch(error => {
                     this.secureError('Error sending MCP notification:', error);
