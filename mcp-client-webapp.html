@@ -59,6 +59,46 @@
             border-radius: 18px; position: relative; line-height: 1.5;
             animation: fadeIn 0.3s ease-in-out;
         }
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 0.8em;
+            opacity: 0.7;
+        }
+        .message-timestamp {
+            font-size: 0.75em;
+            color: var(--text-color);
+            opacity: 0.6;
+        }
+        .message-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .copy-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: var(--text-color);
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+        }
+        .copy-btn:hover {
+            opacity: 1;
+            background-color: var(--tool-item-hover-bg);
+        }
+        .message-content {
+            word-wrap: break-word;
+        }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -383,6 +423,40 @@
             animation: spin 2s linear infinite;
         }
         
+        /* Export functionality styles */
+        .export-section {
+            padding: 10px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--chat-bg);
+        }
+        .export-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .export-btn {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            background-color: var(--btn-secondary-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .export-btn:hover {
+            background-color: var(--tool-item-hover-bg);
+        }
+        
+        /* Copy success feedback */
+        @keyframes copySuccess {
+            0% { background-color: var(--primary-color); color: white; }
+            100% { background-color: transparent; color: var(--text-color); }
+        }
+        .copy-success {
+            animation: copySuccess 0.5s ease;
+        }
+        
         /* Responsive design improvements */
         @media (max-width: 768px) {
             .app { flex-direction: column; }
@@ -536,6 +610,15 @@
                 </div>
             </div>
             
+            <!-- Export section -->
+            <div class="export-section">
+                <div class="export-buttons">
+                    <button id="export-txt" class="export-btn" title="Export as plain text">📄 Export TXT</button>
+                    <button id="export-json" class="export-btn" title="Export as JSON">🔧 Export JSON</button>
+                    <button id="export-md" class="export-btn" title="Export as Markdown">📝 Export MD</button>
+                </div>
+            </div>
+            
             <div class="chat-input">
                 <!-- File attachments preview container -->
                 <div id="attachments-container" class="attachments-container" style="display: none;"></div>
@@ -615,6 +698,10 @@
                 this.lastScrollPosition = 0;
                 this.isAutoScrolling = false;
                 
+                // Message tracking for enhanced features
+                this.messageCounter = 0;
+                this.messagesWithTimestamps = []; // Store messages with metadata
+                
                 // OpenRouter settings - use sessionStorage for API key security
                 this.openRouterApiKey = this.getSecureItem('openRouterApiKey') || '';
                 this.selectedModel = localStorage.getItem('selectedModel') || 'anthropic/claude-3-sonnet';
@@ -667,7 +754,12 @@
                     
                     // File upload elements
                     fileInput: document.getElementById('file-input'),
-                    attachmentsContainer: document.getElementById('attachments-container')
+                    attachmentsContainer: document.getElementById('attachments-container'),
+                    
+                    // Export elements
+                    exportTxt: document.getElementById('export-txt'),
+                    exportJson: document.getElementById('export-json'),
+                    exportMd: document.getElementById('export-md')
                 };
                 
                 this.loadSettings();
@@ -1199,6 +1291,10 @@
                     // Clear token cache to free memory
                     this.tokenCache.clear();
                     
+                    // Clear message tracking
+                    this.messagesWithTimestamps = [];
+                    this.messageCounter = 0;
+                    
                     // Clear visual messages except for the welcome message
                     const messages = Array.from(this.elements.chatMessages.children);
                     for (let i = messages.length - 1; i >= 0; i--) {
@@ -1276,6 +1372,11 @@
                 addListener(this.elements.connectionMode, 'change', () => {
                     this.toggleCustomProxyInput();
                 });
+                
+                // Export functionality
+                addListener(this.elements.exportTxt, 'click', () => this.exportChat('txt'));
+                addListener(this.elements.exportJson, 'click', () => this.exportChat('json'));
+                addListener(this.elements.exportMd, 'click', () => this.exportChat('md'));
                 
                 // Performance: Add cleanup on page unload
                 addListener(window, 'beforeunload', () => this.cleanup());
@@ -2059,15 +2160,11 @@
             }
             
             addUserMessageWithAttachments(text) {
-                const messageElement = document.createElement('div');
-                messageElement.className = 'message user-message';
+                const content = text || '[Attachments]';
+                const messageElement = this.createMessageElement(content, 'user');
                 
-                // Add text content
-                if (text) {
-                    messageElement.textContent = this.sanitizeHTML(text);
-                } else {
-                    messageElement.textContent = '[Attachments]';
-                }
+                // Find the content element and add attachments after it
+                const contentElement = messageElement.querySelector('.message-content');
                 
                 // Add attachments preview
                 for (const attachment of this.attachments) {
@@ -2299,42 +2396,244 @@
                 return await response.json();
             }
             
-            addUserMessage(message) {
+            // Enhanced message creation with timestamps and copy functionality
+            createMessageElement(content, type, timestamp = null) {
                 const messageElement = document.createElement('div');
-                messageElement.className = 'message user-message';
-                messageElement.textContent = this.sanitizeHTML(message || '');
+                messageElement.className = `message ${type}-message`;
+                
+                const messageId = `msg-${++this.messageCounter}`;
+                messageElement.setAttribute('data-message-id', messageId);
+                
+                // Create message header with timestamp and actions
+                const headerElement = document.createElement('div');
+                headerElement.className = 'message-header';
+                
+                const timestampElement = document.createElement('span');
+                timestampElement.className = 'message-timestamp';
+                const msgTimestamp = timestamp || new Date();
+                timestampElement.textContent = this.formatTimestamp(msgTimestamp);
+                
+                const actionsElement = document.createElement('div');
+                actionsElement.className = 'message-actions';
+                
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-btn';
+                copyButton.innerHTML = '📋';
+                copyButton.title = 'Copy message';
+                copyButton.addEventListener('click', () => this.copyMessageToClipboard(content, copyButton));
+                
+                actionsElement.appendChild(copyButton);
+                headerElement.appendChild(timestampElement);
+                headerElement.appendChild(actionsElement);
+                
+                // Create message content
+                const contentElement = document.createElement('div');
+                contentElement.className = 'message-content';
+                contentElement.textContent = this.sanitizeHTML(content || '');
+                
+                messageElement.appendChild(headerElement);
+                messageElement.appendChild(contentElement);
+                
+                // Store message data for export
+                this.messagesWithTimestamps.push({
+                    id: messageId,
+                    type: type,
+                    content: content,
+                    timestamp: msgTimestamp,
+                    element: messageElement
+                });
+                
+                return messageElement;
+            }
+            
+            addUserMessage(message) {
+                const messageElement = this.createMessageElement(message, 'user');
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
             addAssistantMessage(message) {
-                const messageElement = document.createElement('div');
-                messageElement.className = 'message assistant-message';
-                messageElement.textContent = this.sanitizeHTML(message || '');
+                const messageElement = this.createMessageElement(message, 'assistant');
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
             addSystemMessage(message, type = 'info') {
-                const messageElement = document.createElement('div');
-                messageElement.className = `message system-message ${this.sanitizeHTML(type)}`;
-                messageElement.textContent = this.sanitizeHTML(message || '');
+                const messageElement = this.createMessageElement(message, 'system');
+                messageElement.classList.add(this.sanitizeHTML(type));
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
+            // Utility: Format timestamp for display
+            formatTimestamp(date) {
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                if (messageDate.getTime() === today.getTime()) {
+                    return timeStr; // Just time for today
+                } else {
+                    return `${date.toLocaleDateString()} ${timeStr}`; // Date + time for other days
+                }
+            }
+            
+            // Copy message to clipboard
+            async copyMessageToClipboard(content, button) {
+                try {
+                    await navigator.clipboard.writeText(content);
+                    
+                    // Visual feedback
+                    const originalText = button.innerHTML;
+                    button.innerHTML = '✓';
+                    button.classList.add('copy-success');
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.classList.remove('copy-success');
+                    }, 1000);
+                    
+                } catch (err) {
+                    // Fallback for browsers that don't support clipboard API
+                    const textArea = document.createElement('textarea');
+                    textArea.value = content;
+                    textArea.style.position = 'fixed';
+                    textArea.style.opacity = '0';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        this.addSystemMessage('Message copied to clipboard', 'info');
+                    } catch (err) {
+                        this.addSystemMessage('Failed to copy message', 'error');
+                    }
+                    
+                    document.body.removeChild(textArea);
+                }
+            }
+            
+            // Export chat functionality
+            exportChat(format) {
+                if (this.messagesWithTimestamps.length === 0) {
+                    this.addSystemMessage('No messages to export', 'warning');
+                    return;
+                }
+                
+                let content, filename, mimeType;
+                const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+                
+                switch (format) {
+                    case 'txt':
+                        content = this.generateTextExport();
+                        filename = `mcp-chat-${timestamp}.txt`;
+                        mimeType = 'text/plain';
+                        break;
+                    case 'json':
+                        content = this.generateJsonExport();
+                        filename = `mcp-chat-${timestamp}.json`;
+                        mimeType = 'application/json';
+                        break;
+                    case 'md':
+                        content = this.generateMarkdownExport();
+                        filename = `mcp-chat-${timestamp}.md`;
+                        mimeType = 'text/markdown';
+                        break;
+                    default:
+                        this.addSystemMessage('Unknown export format', 'error');
+                        return;
+                }
+                
+                this.downloadFile(content, filename, mimeType);
+                this.addSystemMessage(`Chat exported as ${format.toUpperCase()}`, 'info');
+            }
+            
+            // Generate plain text export
+            generateTextExport() {
+                const header = `MCP Chat Export\nGenerated: ${new Date().toLocaleString()}\nMessages: ${this.messagesWithTimestamps.length}\n${'='.repeat(50)}\n\n`;
+                
+                const messages = this.messagesWithTimestamps.map(msg => {
+                    const time = this.formatTimestamp(msg.timestamp);
+                    const type = msg.type.toUpperCase();
+                    return `[${time}] ${type}: ${msg.content}`;
+                }).join('\n\n');
+                
+                return header + messages;
+            }
+            
+            // Generate JSON export
+            generateJsonExport() {
+                const exportData = {
+                    exportInfo: {
+                        version: '1.0',
+                        timestamp: new Date().toISOString(),
+                        messageCount: this.messagesWithTimestamps.length,
+                        source: 'HTML MCP Client'
+                    },
+                    settings: {
+                        model: this.selectedModel,
+                        systemPrompt: this.systemPrompt,
+                        connectionMode: this.connectionMode
+                    },
+                    messages: this.messagesWithTimestamps.map(msg => ({
+                        id: msg.id,
+                        type: msg.type,
+                        content: msg.content,
+                        timestamp: msg.timestamp.toISOString()
+                    }))
+                };
+                
+                return JSON.stringify(exportData, null, 2);
+            }
+            
+            // Generate Markdown export
+            generateMarkdownExport() {
+                const header = `# MCP Chat Export\n\n**Generated:** ${new Date().toLocaleString()}  \n**Messages:** ${this.messagesWithTimestamps.length}  \n**Model:** ${this.selectedModel}\n\n---\n\n`;
+                
+                const messages = this.messagesWithTimestamps.map(msg => {
+                    const time = this.formatTimestamp(msg.timestamp);
+                    const type = msg.type;
+                    const emoji = type === 'user' ? '👤' : type === 'assistant' ? '🤖' : '⚙️';
+                    
+                    // Escape markdown characters in content
+                    const escapedContent = msg.content
+                        .replace(/\\/g, '\\\\')
+                        .replace(/\*/g, '\\*')
+                        .replace(/_/g, '\\_')
+                        .replace(/`/g, '\\`');
+                    
+                    return `## ${emoji} ${type.charAt(0).toUpperCase() + type.slice(1)} \n*${time}*\n\n${escapedContent}\n`;
+                }).join('\n');
+                
+                return header + messages;
+            }
+            
+            // Download file utility
+            downloadFile(content, filename, mimeType) {
+                const blob = new Blob([content], { type: mimeType });
+                const url = window.URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                window.URL.revokeObjectURL(url);
+            }
+            
             addToolResultMessage(toolName, result) {
-                const messageElement = document.createElement('div');
-                messageElement.className = 'message tool-message';
-                
                 const safeName = this.sanitizeHTML(toolName);
+                const content = `Tool Result (${safeName}):\n${result}`;
+                const messageElement = this.createMessageElement(content, 'tool');
                 
-                const titleEl = document.createElement('strong');
-                titleEl.textContent = `Tool Result (${safeName}):`;
-                
-                messageElement.appendChild(titleEl);
-                messageElement.appendChild(document.createElement('br'));
-                messageElement.appendChild(document.createTextNode(result));
+                // Add special styling for tool messages
+                messageElement.classList.add('tool-message');
                 
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
