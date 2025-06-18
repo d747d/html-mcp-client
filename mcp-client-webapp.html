@@ -574,6 +574,9 @@
                 this.autoApproveTools = false;
                 this.darkMode = false;
                 
+                // Security settings
+                this.isProduction = window.location.protocol === 'https:' && !window.location.hostname.includes('localhost');
+                
                 // File attachment properties
                 this.attachments = [];
                 this.supportedImageTypes = ['image/png', 'image/jpeg', 'image/webp'];
@@ -584,8 +587,8 @@
                 this.maxContextSize = 4096; // Default, will be updated based on model
                 this.modelToContextMap = {}; // Will store context sizes for known models
                 
-                // OpenRouter settings
-                this.openRouterApiKey = localStorage.getItem('openRouterApiKey') || '';
+                // OpenRouter settings - use sessionStorage for API key security
+                this.openRouterApiKey = this.getSecureItem('openRouterApiKey') || '';
                 this.selectedModel = localStorage.getItem('selectedModel') || 'anthropic/claude-3-sonnet';
                 this.systemPrompt = localStorage.getItem('systemPrompt') || 'You are a helpful AI assistant with access to tools. Use tools when appropriate to fulfill user requests.';
                 
@@ -645,6 +648,66 @@
                 setTimeout(() => this.fetchAvailableModels(), 500);
             }
             
+            // Security: Secure storage methods
+            setSecureItem(key, value) {
+                // Use sessionStorage for sensitive data like API keys
+                sessionStorage.setItem(key, value);
+            }
+            
+            getSecureItem(key) {
+                return sessionStorage.getItem(key);
+            }
+            
+            removeSecureItem(key) {
+                sessionStorage.removeItem(key);
+            }
+            
+            // Security: Input validation
+            validateUrl(url) {
+                try {
+                    const urlObj = new URL(url);
+                    // Only allow HTTP and HTTPS protocols
+                    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+                        throw new Error('Invalid protocol. Only HTTP and HTTPS are allowed.');
+                    }
+                    // Block dangerous hosts
+                    const hostname = urlObj.hostname.toLowerCase();
+                    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
+                        // Allow local development but warn in production
+                        if (this.isProduction) {
+                            throw new Error('Local network URLs are not allowed in production.');
+                        }
+                    }
+                    return urlObj.href;
+                } catch (error) {
+                    throw new Error(`Invalid URL: ${error.message}`);
+                }
+            }
+            
+            // Security: Enhanced HTML sanitization
+            sanitizeHTML(text) {
+                if (!text) return '';
+                const temp = document.createElement('div');
+                temp.textContent = String(text);
+                return temp.innerHTML;
+            }
+            
+            // Security: Safe logging (disabled in production)
+            secureLog(message, ...args) {
+                if (!this.isProduction) {
+                    console.log(message, ...args);
+                }
+            }
+            
+            secureError(message, ...args) {
+                if (!this.isProduction) {
+                    console.error(message, ...args);
+                } else {
+                    // In production, log without sensitive data
+                    console.error('Application error occurred');
+                }
+            }
+            
             loadSettings() {
                 document.getElementById('openrouter-api-key').value = this.openRouterApiKey;
                 document.getElementById('model-selection').value = this.selectedModel;
@@ -658,13 +721,29 @@
             saveSettings() {
                 const oldApiKey = this.openRouterApiKey;
                 const oldModel = this.selectedModel;
-                this.openRouterApiKey = this.elements.openRouterApiKey.value;
+                
+                // Validate inputs before saving
+                const newApiKey = this.elements.openRouterApiKey.value.trim();
+                const newSystemPrompt = this.elements.systemPrompt.value.trim();
+                
+                // Basic validation
+                if (newApiKey && newApiKey.length < 10) {
+                    this.addSystemMessage('Warning: API key seems too short. Please verify it is correct.', 'warning');
+                }
+                
+                if (newSystemPrompt.length > 5000) {
+                    this.addSystemMessage('Error: System prompt is too long (max 5000 characters).', 'error');
+                    return;
+                }
+                
+                this.openRouterApiKey = newApiKey;
                 this.selectedModel = this.elements.modelSelection.value;
-                this.systemPrompt = this.elements.systemPrompt.value;
+                this.systemPrompt = newSystemPrompt;
                 this.autoApproveTools = this.elements.autoApproveToggle.checked;
                 this.darkMode = this.elements.darkModeToggle.checked;
                 
-                localStorage.setItem('openRouterApiKey', this.openRouterApiKey);
+                // Use secure storage for API key
+                this.setSecureItem('openRouterApiKey', this.openRouterApiKey);
                 localStorage.setItem('selectedModel', this.selectedModel);
                 localStorage.setItem('systemPrompt', this.systemPrompt);
                 localStorage.setItem('autoApproveTools', this.autoApproveTools);
@@ -719,7 +798,8 @@
                         if (this.supportedImageTypes.includes(file.type) || file.type === this.supportedPdfType) {
                             this.addAttachment(file);
                         } else {
-                            this.addSystemMessage(`Unsupported file type: ${file.type}. Only PNG, JPEG, WebP images and PDF files are supported.`, 'error');
+                            const safeFileType = this.sanitizeHTML(file.type || 'unknown');
+                            this.addSystemMessage(`Unsupported file type: ${safeFileType}. Only PNG, JPEG, WebP images and PDF files are supported.`, 'error');
                         }
                     }
                     
@@ -1025,7 +1105,7 @@
                     }
                     
                     const data = await response.json();
-                    console.log('[OpenRouter] Models response:', data);
+                    this.secureLog('[OpenRouter] Models loaded successfully');
                     
                     // Clear existing options
                     modelSelect.innerHTML = '';
@@ -1090,8 +1170,8 @@
                     
                     this.addSystemMessage(`Loaded ${models.length} models from OpenRouter.`);
                 } catch (error) {
-                    console.error('[OpenRouter] Error fetching models:', error);
-                    this.addSystemMessage(`Error fetching models: ${error.message}`);
+                    this.secureError('[OpenRouter] Error fetching models:', error);
+                    this.addSystemMessage(`Error fetching models: ${this.sanitizeHTML(error.message || 'Unknown error')}`);
                     
                     // Provide fallback models if API call fails
                     this.loadFallbackModels();
@@ -1169,36 +1249,43 @@
             }
             
             connectSSE() {
-                this.sseServerUrl = this.elements.serverUrl.value;
-                this.messageEndpoint = this.elements.messageEndpoint.value;
+                const rawServerUrl = this.elements.serverUrl.value.trim();
+                const rawEndpoint = this.elements.messageEndpoint.value.trim();
                 
-                console.log(`[MCP] Attempting to connect to server: ${this.sseServerUrl}`);
-                console.log(`[MCP] Message endpoint: ${this.messageEndpoint}`);
+                this.secureLog(`[MCP] Attempting to connect to server`);
+                this.secureLog(`[MCP] Message endpoint: ${rawEndpoint}`);
                 
-                if (!this.sseServerUrl) {
-                    console.error('[MCP] Connection error: No server URL provided');
+                if (!rawServerUrl) {
+                    this.secureError('[MCP] Connection error: No server URL provided');
                     this.addSystemMessage('Error: Please enter a server URL.', 'error');
                     return;
                 }
                 
+                // Validate inputs
                 try {
-                    const url = new URL(this.sseServerUrl);
-                    if (!['http:', 'https:'].includes(url.protocol)) {
-                        console.error(`[MCP] Connection error: Invalid protocol: ${url.protocol}`);
-                        throw new Error('Invalid protocol');
+                    this.sseServerUrl = this.validateUrl(rawServerUrl);
+                    
+                    // Validate endpoint path
+                    if (!rawEndpoint || !rawEndpoint.startsWith('/')) {
+                        throw new Error('Message endpoint must start with "/"');
                     }
-                    console.log(`[MCP] Validated URL: ${url.href}`);
+                    if (rawEndpoint.length > 100) {
+                        throw new Error('Message endpoint is too long');
+                    }
+                    this.messageEndpoint = rawEndpoint;
+                    
+                    this.secureLog(`[MCP] Validated connection parameters`);
                 } catch (error) {
-                    console.error('[MCP] Connection error: Invalid URL format', error);
-                    this.addSystemMessage('Error: Invalid server URL. Must be a valid HTTP or HTTPS URL.', 'error');
+                    this.secureError('[MCP] Connection error: Invalid URL format', error);
+                    this.addSystemMessage(`Error: ${error.message}`, 'error');
                     return;
                 }
                 
                 this.updateConnectionStatus('connecting', 'Connecting...');
-                console.log('[MCP] Connection status: Connecting...');
+                this.secureLog('[MCP] Connection status: Connecting...');
                 
                 try {
-                    console.log('[MCP] Creating EventSource connection');
+                    this.secureLog('[MCP] Creating EventSource connection');
                     // Add cache-busting parameter to prevent caching of SSE connection
                     const sseUrl = new URL(this.sseServerUrl);
                     sseUrl.searchParams.append('t', Date.now());
@@ -1206,11 +1293,11 @@
                     
                     this.eventSource.onopen = () => {
                         this.connected = true;
-                        console.log('[MCP] Connection established successfully');
+                        this.secureLog('[MCP] Connection established successfully');
                         this.updateConnectionStatus('connected', 'Connected');
                         this.addSystemMessage('Connected to MCP server.');
                         
-                        console.log('[MCP] Sending initialize request');
+                        this.secureLog('[MCP] Sending initialize request');
                         this.sendMcpRequest({
                             method: 'initialize',
                             params: {
@@ -1223,24 +1310,24 @@
                     this.eventSource.onmessage = (event) => this.handleServerMessage(event);
                     
                     this.eventSource.onerror = (error) => {
-                        console.error('[MCP] SSE connection error:', error);
+                        this.secureError('[MCP] SSE connection error:', error);
                         this.disconnect();
                         this.addSystemMessage('Error: Connection to MCP server failed.', 'error');
                     };
                 } catch (error) {
-                    console.error('[MCP] Failed to create connection:', error);
+                    this.secureError('[MCP] Failed to create connection:', error);
                     this.updateConnectionStatus('disconnected', 'Disconnected');
                     this.addSystemMessage('Error: Failed to connect to MCP server.', 'error');
                 }
             }
             
             disconnect() {
-                console.log('[MCP] Disconnecting from server');
+                this.secureLog('[MCP] Disconnecting from server');
                 
                 if (this.eventSource) {
                     this.eventSource.close();
                     this.eventSource = null;
-                    console.log('[MCP] EventSource connection closed');
+                    this.secureLog('[MCP] EventSource connection closed');
                 }
                 
                 this.connected = false;
@@ -1249,9 +1336,9 @@
                 this.addSystemMessage('Disconnected from MCP server.');
                 
                 this.tools = [];
-                console.log('[MCP] Tools list cleared');
+                this.secureLog('[MCP] Tools list cleared');
                 this.updateToolsList();
-                console.log('[MCP] Disconnection complete');
+                this.secureLog('[MCP] Disconnection complete');
             }
             
             updateConnectionStatus(state, text) {
@@ -1261,13 +1348,12 @@
             }
             
             handleServerMessage(event) {
-                console.log('[MCP] Received raw message from server:', event.data);
+                this.secureLog('[MCP] Received message from server');
                 let message;
                 try {
                     message = JSON.parse(event.data);
                 } catch (error) {
-                    console.error('[MCP] Error parsing message:', error);
-                    console.error('[MCP] Raw message data:', event.data);
+                    this.secureError('[MCP] Error parsing message:', error);
                     return;
                 }
                 
@@ -1275,19 +1361,21 @@
             }
             
             processServerMessage(message) {
-                console.log('[MCP] Parsed message:', message);
+                this.secureLog('[MCP] Processing message');
                 
                 if (message.result && message.id) {
-                    console.log(`[MCP] Processing response for request ID: ${message.id}`);
+                    this.secureLog(`[MCP] Processing response for request ID: ${message.id}`);
                     this.handleResponseMessage(message);
                 } else if (message.method && !message.id) {
-                    console.log(`[MCP] Processing notification: ${message.method}`);
+                    this.secureLog(`[MCP] Processing notification: ${message.method}`);
                     this.handleNotificationMessage(message);
                 } else if (message.error) {
-                    console.error('[MCP] Protocol error:', message.error);
-                    this.addSystemMessage(`MCP Error: ${message.error.message}`, 'error');
+                    this.secureError('[MCP] Protocol error:', message.error);
+                    // Sanitize error message before displaying
+                    const errorMsg = this.sanitizeHTML(message.error.message || 'Unknown error');
+                    this.addSystemMessage(`MCP Error: ${errorMsg}`, 'error');
                 } else {
-                    console.warn('[MCP] Received message with unknown format:', message);
+                    this.secureError('[MCP] Received message with unknown format');
                 }
             }
             
@@ -1296,7 +1384,7 @@
                 
                 const pendingRequest = this.messageQueue.find(req => req.id === id);
                 if (!pendingRequest) {
-                    console.warn('Received response for unknown request:', id);
+                    this.secureError('Received response for unknown request:', id);
                     return;
                 }
                 
@@ -1311,7 +1399,7 @@
                         this.handleToolCallResponse(id, result);
                         break;
                     default:
-                        console.log('Received response for', pendingRequest.method, ':', result);
+                        this.secureLog('Received response for', pendingRequest.method);
                 }
                 
                 this.messageQueue = this.messageQueue.filter(req => req.id !== id);
@@ -1330,35 +1418,39 @@
                         }
                         break;
                     default:
-                        console.log('Received notification:', method, params);
+                        this.secureLog('Received notification:', method);
                 }
             }
             
             handleInitializeResponse(result) {
-                console.log('[MCP] Initialization successful:', result);
-                console.log('[MCP] Server capabilities:', result.capabilities);
-                console.log('[MCP] Server info:', result.serverInfo);
+                this.secureLog('[MCP] Initialization successful');
                 
-                this.addSystemMessage(`Connected to ${result.serverInfo.name} v${result.serverInfo.version}`);
+                // Sanitize server info before displaying
+                const serverName = this.sanitizeHTML(result.serverInfo?.name || 'Unknown Server');
+                const serverVersion = this.sanitizeHTML(result.serverInfo?.version || 'Unknown');
+                this.addSystemMessage(`Connected to ${serverName} v${serverVersion}`);
                 
-                console.log('[MCP] Sending initialized notification');
+                this.secureLog('[MCP] Sending initialized notification');
                 this.sendMcpNotification({
                     method: 'initialized'
                 });
                 
-                console.log('[MCP] Requesting tools list');
+                this.secureLog('[MCP] Requesting tools list');
                 this.listTools();
             }
             
             handleToolsListResponse(result) {
                 if (result && result.tools) {
-                    this.tools = result.tools;
-                    console.log(`[MCP] Received ${this.tools.length} tools from server:`, this.tools);
-                    this.tools.forEach((tool, index) => {
-                        console.log(`[MCP] Tool ${index+1}: ${tool.name}`);
-                        console.log(`[MCP] - Description: ${tool.description || 'None'}`);
-                        console.log(`[MCP] - Schema: ${JSON.stringify(tool.inputSchema)}`);
-                    });
+                    // Validate and sanitize tools
+                    this.tools = result.tools.filter(tool => {
+                        return tool && typeof tool.name === 'string' && tool.name.length > 0;
+                    }).map(tool => ({
+                        ...tool,
+                        name: this.sanitizeHTML(tool.name),
+                        description: this.sanitizeHTML(tool.description || '')
+                    }));
+                    
+                    this.secureLog(`[MCP] Received ${this.tools.length} tools from server`);
                     this.updateToolsList();
                     this.addSystemMessage(`Found ${this.tools.length} available tools.`);
                     
@@ -1370,37 +1462,36 @@
                         }
                     }
                 } else {
-                    console.warn('[MCP] Received empty or invalid tools list response:', result);
+                    this.secureError('[MCP] Received empty or invalid tools list response');
                 }
             }
             
             handleToolCallResponse(requestId, result) {
-                console.log(`[MCP] Tool call response received for request ID: ${requestId}`, result);
+                this.secureLog(`[MCP] Tool call response received for request ID: ${requestId}`);
                 const pendingCall = this.pendingToolCalls[requestId];
                 if (!pendingCall) {
-                    console.warn('[MCP] Received tool call response for unknown request:', requestId);
+                    this.secureError('[MCP] Received tool call response for unknown request:', requestId);
                     return;
                 }
                 
-                console.log(`[MCP] Processing tool result for: ${pendingCall.name}`);
-                console.log('[MCP] Tool arguments were:', pendingCall.args);
-                console.log('[MCP] Tool error status:', result.isError ? 'ERROR' : 'SUCCESS');
+                this.secureLog(`[MCP] Processing tool result for: ${pendingCall.name}`);
+                this.secureLog('[MCP] Tool error status:', result.isError ? 'ERROR' : 'SUCCESS');
                 
                 let toolResult = '';
                 if (result.content && result.content.length > 0) {
-                    console.log('[MCP] Tool response content items:', result.content.length);
-                    result.content.forEach((item, i) => {
-                        console.log(`[MCP] Content item ${i+1}:`, item);
-                    });
+                    this.secureLog('[MCP] Tool response content items:', result.content.length);
                     
                     toolResult = result.content
-                        .filter(item => item.type === 'text')
+                        .filter(item => item && item.type === 'text' && typeof item.text === 'string')
                         .map(item => item.text)
                         .join('\n');
                     
-                    console.log('[MCP] Extracted text content:', toolResult);
+                    // Limit tool result size to prevent DoS
+                    if (toolResult.length > 50000) {
+                        toolResult = toolResult.substring(0, 50000) + '\n[Content truncated due to length]';
+                    }
                 } else {
-                    console.warn('[MCP] Tool response had no content items');
+                    this.secureError('[MCP] Tool response had no content items');
                 }
                 
                 toolResult = this.sanitizeHTML(toolResult);
@@ -1412,11 +1503,11 @@
                 this.currentContextSize += toolResultTokens;
                 this.updateContextCounter();
                 
-                console.log('[MCP] Continuing conversation with tool result');
+                this.secureLog('[MCP] Continuing conversation with tool result');
                 this.continueConversationWithToolResult(pendingCall, toolResult, result.isError);
                 
                 delete this.pendingToolCalls[requestId];
-                console.log(`[MCP] Removed pending tool call for request ID: ${requestId}`);
+                this.secureLog(`[MCP] Removed pending tool call for request ID: ${requestId}`);
             }
             
             listTools() {
@@ -1448,8 +1539,13 @@
                     toolsList.appendChild(toolItem);
                     
                     toolItem.addEventListener('click', () => {
-                        const safeSchema = this.sanitizeHTML(JSON.stringify(tool.inputSchema, null, 2));
-                        alert(`Tool: ${safeName}\n\nSchema: ${safeSchema}`);
+                        try {
+                            const schema = tool.inputSchema ? JSON.stringify(tool.inputSchema, null, 2) : 'No schema available';
+                            const safeSchema = this.sanitizeHTML(schema);
+                            alert(`Tool: ${safeName}\n\nSchema: ${safeSchema}`);
+                        } catch (error) {
+                            alert(`Tool: ${safeName}\n\nSchema: Invalid schema format`);
+                        }
                     });
                 });
             }
@@ -1463,8 +1559,14 @@
             
             sendMcpRequest(request) {
                 if (!this.connected) {
-                    console.error('[MCP] Attempted to send request while disconnected');
+                    this.secureError('[MCP] Attempted to send request while disconnected');
                     this.addSystemMessage('Error: Not connected to MCP server.', 'error');
+                    return null;
+                }
+                
+                // Validate request parameters
+                if (!request || !request.method || typeof request.method !== 'string') {
+                    this.secureError('[MCP] Invalid request format');
                     return null;
                 }
                 
@@ -1475,8 +1577,7 @@
                     ...request
                 };
                 
-                console.log(`[MCP] Sending request ID ${id}, method: ${request.method}`, request.params);
-                console.log('[MCP] Full request payload:', jsonRpcRequest);
+                this.secureLog(`[MCP] Sending request ID ${id}, method: ${request.method}`);
                 
                 this.messageQueue.push({
                     id,
@@ -1485,34 +1586,37 @@
                 });
                 
                 // Handle SSE transport (POST request)
-                const url = new URL(this.messageEndpoint, this.sseServerUrl).href;
-                console.log(`[MCP] Sending to endpoint: ${url}`);
-                
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'Cache-Control': 'no-cache',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    credentials: 'same-origin',
-                    body: JSON.stringify(jsonRpcRequest)
-                }).then(response => {
-                    if (!response.ok) {
-                        console.error(`[MCP] HTTP error: ${response.status} ${response.statusText}`);
-                        return response.text().then(text => {
-                            console.error('[MCP] Response body:', text);
-                            throw new Error(`HTTP error: ${response.status} - ${text}`);
-                        });
-                    }
-                    console.log(`[MCP] Request ID ${id} sent successfully, HTTP status: ${response.status}`);
-                    return response;
-                }).catch(error => {
-                    console.error('[MCP] Error sending request:', error);
-                    console.error(`[MCP] Failed request details - ID: ${id}, Method: ${request.method}`);
-                    this.addSystemMessage(`Error sending request to MCP server: ${error.message}`, 'error');
-                });
+                try {
+                    const url = new URL(this.messageEndpoint, this.sseServerUrl).href;
+                    this.secureLog(`[MCP] Sending to endpoint`);
+                    
+                    fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify(jsonRpcRequest)
+                    }).then(response => {
+                        if (!response.ok) {
+                            this.secureError(`[MCP] HTTP error: ${response.status}`);
+                            return response.text().then(text => {
+                                throw new Error(`HTTP error: ${response.status}`);
+                            });
+                        }
+                        this.secureLog(`[MCP] Request ID ${id} sent successfully`);
+                        return response;
+                    }).catch(error => {
+                        this.secureError('[MCP] Error sending request:', error.message);
+                        this.addSystemMessage(`Error sending request to MCP server: ${this.sanitizeHTML(error.message)}`, 'error');
+                    });
+                } catch (error) {
+                    this.secureError('[MCP] Failed to construct request URL');
+                    return null;
+                }
                 
                 return id;
             }
@@ -1536,13 +1640,19 @@
                     credentials: 'same-origin',
                     body: JSON.stringify(jsonRpcNotification)
                 }).catch(error => {
-                    console.error('Error sending MCP notification:', error);
+                    this.secureError('Error sending MCP notification:', error);
                 });
             }
             
             async sendUserMessage() {
                 const userInput = this.elements.userInput.value.trim();
                 if (!userInput && this.attachments.length === 0) return;
+                
+                // Validate user input
+                if (userInput.length > 10000) {
+                    this.addSystemMessage('Error: Message is too long (max 10,000 characters).', 'error');
+                    return;
+                }
                 
                 const hasAttachments = this.attachments.length > 0;
                 
@@ -1591,8 +1701,8 @@
                     this.processLLMResponse(llmResponse);
                 } catch (error) {
                     this.hideTypingIndicator();
-                    console.error('Error getting LLM response:', error);
-                    this.addSystemMessage('Error: Failed to get AI response.', 'error');
+                    this.secureError('Error getting LLM response:', error);
+                    this.addSystemMessage(`Error: ${this.sanitizeHTML(error.message || 'Failed to get AI response')}.`, 'error');
                 }
             }
             
@@ -1642,7 +1752,7 @@
                 
                 // Add text content
                 if (text) {
-                    messageElement.textContent = text;
+                    messageElement.textContent = this.sanitizeHTML(text);
                 } else {
                     messageElement.textContent = '[Attachments]';
                 }
@@ -1717,7 +1827,7 @@
                     this.currentContextSize += assistantTokens;
                     this.updateContextCounter();
                 } else {
-                    console.error('Unexpected LLM response format:', response);
+                    this.secureError('Unexpected LLM response format');
                     this.addSystemMessage('Error: Received unexpected response format from LLM.', 'error');
                 }
             }
@@ -1752,7 +1862,7 @@
                         this.showToolApprovalModal(pendingToolCall);
                     }
                 } catch (error) {
-                    console.error('Error handling tool call:', error);
+                    this.secureError('Error handling tool call:', error);
                     this.addSystemMessage('Error processing tool call.', 'error');
                 }
             }
@@ -1810,8 +1920,8 @@
                     this.processLLMResponse(response);
                 }).catch(error => {
                     this.hideTypingIndicator();
-                    console.error('Error getting follow-up response:', error);
-                    this.addSystemMessage('Error: Failed to get AI follow-up response.', 'error');
+                    this.secureError('Error getting follow-up response:', error);
+                    this.addSystemMessage(`Error: ${this.sanitizeHTML(error.message || 'Failed to get AI follow-up response')}.`, 'error');
                 });
             }
             
@@ -1883,7 +1993,7 @@
             addUserMessage(message) {
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message user-message';
-                messageElement.textContent = message;
+                messageElement.textContent = this.sanitizeHTML(message || '');
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
@@ -1891,15 +2001,15 @@
             addAssistantMessage(message) {
                 const messageElement = document.createElement('div');
                 messageElement.className = 'message assistant-message';
-                messageElement.textContent = message;
+                messageElement.textContent = this.sanitizeHTML(message || '');
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
             
             addSystemMessage(message, type = 'info') {
                 const messageElement = document.createElement('div');
-                messageElement.className = `message system-message ${type}`;
-                messageElement.textContent = message;
+                messageElement.className = `message system-message ${this.sanitizeHTML(type)}`;
+                messageElement.textContent = this.sanitizeHTML(message || '');
                 this.elements.chatMessages.appendChild(messageElement);
                 this.scrollToBottom();
             }
