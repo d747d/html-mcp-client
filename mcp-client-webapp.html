@@ -275,6 +275,11 @@
             border-radius: 4px; font-size: 13px; background-color: var(--form-control-bg);
             color: var(--text-color);
         }
+        .form-group small {
+            font-size: 0.8em;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
         
         /* Message attachment styles */
         .message-attachment {
@@ -619,8 +624,6 @@
                 this.connectionMode = localStorage.getItem('connectionMode') || 'direct';
                 this.customProxyUrl = localStorage.getItem('customProxyUrl') || '';
                 
-                this.loadSettings();
-                
                 // UI elements
                 this.elements = {
                     serverUrl: document.getElementById('server-url'),
@@ -667,9 +670,13 @@
                     attachmentsContainer: document.getElementById('attachments-container')
                 };
                 
+                this.loadSettings();
                 this.initEventListeners();
                 this.initDarkMode();
                 this.initFileUpload();
+                
+                // Initialize accordion states (some may be open by default)
+                this.initAccordions();
                 
                 // Initialize context counter
                 this.initContextCounter();
@@ -848,8 +855,10 @@
             }
             
             initDarkMode() {
+                // Apply dark mode immediately if enabled
+                this.applyDarkMode();
+                
                 if (this.darkMode) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
                     this.elements.darkModeToggle.checked = true;
                 }
                 
@@ -865,6 +874,23 @@
                 } else {
                     document.documentElement.removeAttribute('data-theme');
                 }
+            }
+            
+            // Initialize accordion states and ensure proper chevron display
+            initAccordions() {
+                if (!this.elements.accordionHeaders || this.elements.accordionHeaders.length === 0) {
+                    this.secureLog('Warning: No accordion headers found');
+                    return;
+                }
+                
+                this.elements.accordionHeaders.forEach(header => {
+                    const content = header.nextElementSibling;
+                    const chevron = header.querySelector('.chevron');
+                    if (chevron && content) {
+                        // Set initial chevron state based on content visibility
+                        chevron.textContent = content.classList.contains('open') ? '▼' : '▶';
+                    }
+                });
             }
             
             // Performance: Optimized file upload with size limits and validation
@@ -1220,15 +1246,24 @@
                 addListener(this.elements.denyToolButton, 'click', () => this.handleToolApproval(false));
                 addListener(this.elements.modalClose, 'click', () => this.hideToolApprovalModal());
                 
-                this.elements.accordionHeaders.forEach(header => {
-                    const handler = () => {
-                        const content = header.nextElementSibling;
-                        content.classList.toggle('open');
-                        const chevron = header.querySelector('.chevron');
-                        chevron.textContent = content.classList.contains('open') ? '▼' : '▶';
-                    };
-                    addListener(header, 'click', handler);
-                });
+                // Add accordion click handlers with error checking
+                if (this.elements.accordionHeaders && this.elements.accordionHeaders.length > 0) {
+                    this.elements.accordionHeaders.forEach(header => {
+                        const handler = () => {
+                            const content = header.nextElementSibling;
+                            if (content) {
+                                content.classList.toggle('open');
+                                const chevron = header.querySelector('.chevron');
+                                if (chevron) {
+                                    chevron.textContent = content.classList.contains('open') ? '▼' : '▶';
+                                }
+                            }
+                        };
+                        addListener(header, 'click', handler);
+                    });
+                } else {
+                    this.secureLog('Warning: No accordion headers found for event listeners');
+                }
                 
                 // Listen for model selection changes
                 addListener(this.elements.modelSelection, 'change', () => {
@@ -2364,7 +2399,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            window.mcpClient = new MCPClient();
+            // Add a small delay to ensure all DOM elements are fully loaded
+            setTimeout(() => {
+                window.mcpClient = new MCPClient();
+            }, 100);
         });
     </script>
 </body>
