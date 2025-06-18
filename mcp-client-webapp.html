@@ -587,6 +587,14 @@
                 this.maxContextSize = 4096; // Default, will be updated based on model
                 this.modelToContextMap = {}; // Will store context sizes for known models
                 
+                // Performance optimization properties
+                this.tokenCache = new Map(); // Cache for token counts
+                this.toolEventListeners = new Map(); // Track event listeners for cleanup
+                this.maxChatHistory = 500; // Limit chat history to prevent memory bloat
+                this.requestDebounceMap = new Map(); // Debounce API requests
+                this.lastScrollPosition = 0;
+                this.isAutoScrolling = false;
+                
                 // OpenRouter settings - use sessionStorage for API key security
                 this.openRouterApiKey = this.getSecureItem('openRouterApiKey') || '';
                 this.selectedModel = localStorage.getItem('selectedModel') || 'anthropic/claude-3-sonnet';
@@ -787,14 +795,32 @@
                 }
             }
             
-            // File upload functionality
+            // Performance: Optimized file upload with size limits and validation
             initFileUpload() {
                 this.elements.fileInput.addEventListener('change', (e) => {
                     const files = e.target.files;
                     if (!files || files.length === 0) return;
                     
+                    // Performance: Check total file size to prevent memory issues
+                    const maxFileSize = 10 * 1024 * 1024; // 10MB per file
+                    const maxTotalSize = 50 * 1024 * 1024; // 50MB total
+                    let totalSize = 0;
+                    
                     for (let i = 0; i < files.length; i++) {
                         const file = files[i];
+                        
+                        // Validate file size
+                        if (file.size > maxFileSize) {
+                            this.addSystemMessage(`File "${this.sanitizeHTML(file.name)}" is too large (max 10MB per file).`, 'error');
+                            continue;
+                        }
+                        
+                        totalSize += file.size;
+                        if (totalSize > maxTotalSize) {
+                            this.addSystemMessage('Total file size exceeds limit (max 50MB total).', 'error');
+                            break;
+                        }
+                        
                         if (this.supportedImageTypes.includes(file.type) || file.type === this.supportedPdfType) {
                             this.addAttachment(file);
                         } else {
@@ -808,7 +834,14 @@
                 });
             }
             
+            // Performance: Optimized attachment handling with progress feedback
             addAttachment(file) {
+                // Performance: Limit number of attachments
+                if (this.attachments.length >= 10) {
+                    this.addSystemMessage('Maximum number of attachments reached (10).', 'error');
+                    return;
+                }
+                
                 const reader = new FileReader();
                 
                 reader.onload = (e) => {
@@ -823,9 +856,14 @@
                     this.renderAttachmentPreviews();
                 };
                 
+                reader.onerror = () => {
+                    this.addSystemMessage(`Failed to read file: ${this.sanitizeHTML(file.name)}`, 'error');
+                };
+                
                 reader.readAsDataURL(file);
             }
             
+            // Performance: Optimized attachment preview rendering with DocumentFragment
             renderAttachmentPreviews() {
                 const container = this.elements.attachmentsContainer;
                 container.innerHTML = '';
@@ -837,6 +875,9 @@
                 
                 container.style.display = 'flex';
                 
+                // Use DocumentFragment for batch DOM operations
+                const fragment = document.createDocumentFragment();
+                
                 this.attachments.forEach((attachment, index) => {
                     const preview = document.createElement('div');
                     preview.className = 'attachment-preview';
@@ -846,6 +887,8 @@
                         const img = document.createElement('img');
                         img.src = attachment.dataUrl;
                         img.alt = attachment.name;
+                        // Performance: Add loading optimization
+                        img.loading = 'lazy';
                         preview.appendChild(img);
                     } else if (attachment.type === this.supportedPdfType) {
                         // PDF icon preview
@@ -866,8 +909,11 @@
                     });
                     
                     preview.appendChild(removeBtn);
-                    container.appendChild(preview);
+                    fragment.appendChild(preview);
                 });
+                
+                // Single DOM update
+                container.appendChild(fragment);
             }
             
             // Initialize context counter functionality
@@ -886,9 +932,15 @@
                 this.elements.clearContext.addEventListener('click', () => this.clearConversation());
             }
             
-            // Estimate token count function - simple approximation
+            // Performance: Cached token estimation for better performance
             estimateTokenCount(text) {
                 if (!text) return 0;
+                
+                // Check cache first
+                const cacheKey = text;
+                if (this.tokenCache.has(cacheKey)) {
+                    return this.tokenCache.get(cacheKey);
+                }
                 
                 // Rough approximation based on GPT tokenization patterns:
                 // 1. ~4 characters per token on average for English
@@ -900,8 +952,17 @@
                 // Take the max of character-based and word-based estimation
                 // to ensure we don't underestimate tokens
                 const charEstimate = Math.ceil(chars / 4);
+                const tokenCount = Math.max(words, charEstimate);
                 
-                return Math.max(words, charEstimate);
+                // Cache the result (limit cache size to prevent memory bloat)
+                if (this.tokenCache.size > 1000) {
+                    // Remove oldest entries (simple FIFO)
+                    const firstKey = this.tokenCache.keys().next().value;
+                    this.tokenCache.delete(firstKey);
+                }
+                this.tokenCache.set(cacheKey, tokenCount);
+                
+                return tokenCount;
             }
             
             // Estimate token count for file attachments
@@ -984,7 +1045,13 @@
                 }
             }
             
-            // Recalculate total context size from chat history
+            // Performance: Incremental context size tracking instead of full recalculation
+            addToContextSize(tokens) {
+                this.currentContextSize += tokens;
+                this.updateContextCounter();
+            }
+            
+            // Performance: Optimized context size recalculation (only when necessary)
             recalculateContextSize() {
                 let totalTokens = 0;
                 
@@ -1010,12 +1077,29 @@
                 this.updateContextCounter();
             }
             
+            // Performance: Prune chat history to prevent memory bloat
+            pruneChatsHistory() {
+                if (this.chatHistory.length > this.maxChatHistory) {
+                    const excessMessages = this.chatHistory.length - this.maxChatHistory;
+                    this.chatHistory.splice(0, excessMessages);
+                    
+                    // Recalculate context size after pruning
+                    this.recalculateContextSize();
+                    
+                    this.addSystemMessage(`Chat history pruned (removed ${excessMessages} old messages to optimize performance)`, 'info');
+                }
+            }
+            
             // Clear the conversation and reset context
+            // Performance: Optimized conversation clearing with cleanup
             clearConversation() {
                 // Ask for confirmation
                 if (confirm('Are you sure you want to clear the conversation history?')) {
                     // Clear chat history array
                     this.chatHistory = [];
+                    
+                    // Clear token cache to free memory
+                    this.tokenCache.clear();
                     
                     // Clear visual messages except for the welcome message
                     const messages = Array.from(this.elements.chatMessages.children);
@@ -1034,45 +1118,99 @@
                 }
             }
             
+            // Performance: Optimized event listeners with proper cleanup tracking
             initEventListeners() {
-                this.elements.connectButton.addEventListener('click', () => 
+                // Store event listeners for potential cleanup
+                this.mainEventListeners = [];
+                
+                const addListener = (element, event, handler) => {
+                    element.addEventListener(event, handler);
+                    this.mainEventListeners.push({ element, event, handler });
+                };
+                
+                addListener(this.elements.connectButton, 'click', () => 
                     this.connected ? this.disconnect() : this.connect());
                 
-                this.elements.sendButton.addEventListener('click', () => this.sendUserMessage());
+                addListener(this.elements.sendButton, 'click', () => this.sendUserMessage());
                 
-                this.elements.userInput.addEventListener('keypress', (e) => {
+                addListener(this.elements.userInput, 'keypress', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         this.sendUserMessage();
                     }
                 });
                 
-                this.elements.saveSettings.addEventListener('click', () => this.saveSettings());
+                addListener(this.elements.saveSettings, 'click', () => this.saveSettings());
                 
-                this.elements.refreshModels.addEventListener('click', () => this.fetchAvailableModels());
+                addListener(this.elements.refreshModels, 'click', () => this.fetchAvailableModels());
                 
-                this.elements.approveToolButton.addEventListener('click', () => this.handleToolApproval(true));
-                this.elements.denyToolButton.addEventListener('click', () => this.handleToolApproval(false));
-                this.elements.modalClose.addEventListener('click', () => this.hideToolApprovalModal());
+                addListener(this.elements.approveToolButton, 'click', () => this.handleToolApproval(true));
+                addListener(this.elements.denyToolButton, 'click', () => this.handleToolApproval(false));
+                addListener(this.elements.modalClose, 'click', () => this.hideToolApprovalModal());
                 
                 this.elements.accordionHeaders.forEach(header => {
-                    header.addEventListener('click', () => {
+                    const handler = () => {
                         const content = header.nextElementSibling;
                         content.classList.toggle('open');
                         const chevron = header.querySelector('.chevron');
                         chevron.textContent = content.classList.contains('open') ? '▼' : '▶';
-                    });
+                    };
+                    addListener(header, 'click', handler);
                 });
                 
                 // Listen for model selection changes
-                this.elements.modelSelection.addEventListener('change', () => {
+                addListener(this.elements.modelSelection, 'change', () => {
                     this.selectedModel = this.elements.modelSelection.value;
                     this.updateMaxContextSize();
                     this.updateContextCounter();
                 });
+                
+                // Performance: Add cleanup on page unload
+                addListener(window, 'beforeunload', () => this.cleanup());
             }
             
+            // Performance: Cleanup method to prevent memory leaks
+            cleanup() {
+                // Clean up main event listeners
+                if (this.mainEventListeners) {
+                    this.mainEventListeners.forEach(({ element, event, handler }) => {
+                        element.removeEventListener(event, handler);
+                    });
+                }
+                
+                // Clean up tool event listeners
+                this.cleanupToolEventListeners();
+                
+                // Clear debounce timers
+                this.requestDebounceMap.forEach(timeoutId => {
+                    clearTimeout(timeoutId);
+                });
+                
+                // Close connections
+                if (this.eventSource) {
+                    this.eventSource.close();
+                }
+            }
+            
+            // Performance: Debounced model fetching to prevent rapid API calls
             async fetchAvailableModels() {
+                const debounceKey = 'fetchModels';
+                
+                // Clear existing debounce
+                if (this.requestDebounceMap.has(debounceKey)) {
+                    clearTimeout(this.requestDebounceMap.get(debounceKey));
+                }
+                
+                // Debounce the request
+                const timeoutId = setTimeout(() => {
+                    this.requestDebounceMap.delete(debounceKey);
+                    this._fetchAvailableModelsImpl();
+                }, 300);
+                
+                this.requestDebounceMap.set(debounceKey, timeoutId);
+            }
+            
+            async _fetchAvailableModelsImpl() {
                 this.addSystemMessage('Fetching available models from OpenRouter...');
                 const modelSelect = this.elements.modelSelection;
                 modelSelect.disabled = true;
@@ -1321,6 +1459,7 @@
                 }
             }
             
+            // Performance: Enhanced disconnect with proper cleanup
             disconnect() {
                 this.secureLog('[MCP] Disconnecting from server');
                 
@@ -1329,6 +1468,12 @@
                     this.eventSource = null;
                     this.secureLog('[MCP] EventSource connection closed');
                 }
+                
+                // Performance: Clear any pending debounced requests
+                this.requestDebounceMap.forEach(timeoutId => {
+                    clearTimeout(timeoutId);
+                });
+                this.requestDebounceMap.clear();
                 
                 this.connected = false;
                 this.updateConnectionStatus('disconnected', 'Disconnected');
@@ -1500,8 +1645,7 @@
                 
                 // Update context usage - track tool result
                 const toolResultTokens = this.estimateTokenCount(toolResult);
-                this.currentContextSize += toolResultTokens;
-                this.updateContextCounter();
+                this.addToContextSize(toolResultTokens);
                 
                 this.secureLog('[MCP] Continuing conversation with tool result');
                 this.continueConversationWithToolResult(pendingCall, toolResult, result.isError);
@@ -1516,14 +1660,25 @@
                 });
             }
             
+            // Performance: Optimized DOM manipulation using DocumentFragment
             updateToolsList() {
                 const toolsList = this.elements.toolsList;
+                
+                // Clean up existing event listeners to prevent memory leaks
+                this.cleanupToolEventListeners();
+                
+                // Clear existing content
                 toolsList.innerHTML = '';
                 
                 if (this.tools.length === 0) {
-                    toolsList.innerHTML = '<p>No tools available.</p>';
+                    const emptyMessage = document.createElement('p');
+                    emptyMessage.textContent = 'No tools available.';
+                    toolsList.appendChild(emptyMessage);
                     return;
                 }
+                
+                // Use DocumentFragment for batch DOM operations
+                const fragment = document.createDocumentFragment();
                 
                 this.tools.forEach(tool => {
                     const toolItem = document.createElement('div');
@@ -1532,22 +1687,51 @@
                     const safeName = this.sanitizeHTML(tool.name);
                     const safeDescription = this.sanitizeHTML(tool.description || 'No description available');
                     
-                    toolItem.innerHTML = `
-                        <strong>${safeName}</strong>
-                        <p style="margin: 4px 0 0 0; font-size: 0.9em;">${safeDescription}</p>
-                    `;
-                    toolsList.appendChild(toolItem);
+                    // Create elements instead of innerHTML for better performance
+                    const nameElement = document.createElement('strong');
+                    nameElement.textContent = safeName;
                     
-                    toolItem.addEventListener('click', () => {
-                        try {
-                            const schema = tool.inputSchema ? JSON.stringify(tool.inputSchema, null, 2) : 'No schema available';
-                            const safeSchema = this.sanitizeHTML(schema);
-                            alert(`Tool: ${safeName}\n\nSchema: ${safeSchema}`);
-                        } catch (error) {
-                            alert(`Tool: ${safeName}\n\nSchema: Invalid schema format`);
-                        }
-                    });
+                    const descElement = document.createElement('p');
+                    descElement.style.margin = '4px 0 0 0';
+                    descElement.style.fontSize = '0.9em';
+                    descElement.textContent = safeDescription;
+                    
+                    toolItem.appendChild(nameElement);
+                    toolItem.appendChild(descElement);
+                    
+                    // Create optimized click handler
+                    const clickHandler = this.createToolClickHandler(tool, safeName);
+                    toolItem.addEventListener('click', clickHandler);
+                    
+                    // Store reference for cleanup
+                    this.toolEventListeners.set(toolItem, clickHandler);
+                    
+                    fragment.appendChild(toolItem);
                 });
+                
+                // Single DOM update
+                toolsList.appendChild(fragment);
+            }
+            
+            // Performance: Cleanup event listeners to prevent memory leaks
+            cleanupToolEventListeners() {
+                this.toolEventListeners.forEach((handler, element) => {
+                    element.removeEventListener('click', handler);
+                });
+                this.toolEventListeners.clear();
+            }
+            
+            // Performance: Reusable click handler factory
+            createToolClickHandler(tool, safeName) {
+                return () => {
+                    try {
+                        const schema = tool.inputSchema ? JSON.stringify(tool.inputSchema, null, 2) : 'No schema available';
+                        const safeSchema = this.sanitizeHTML(schema);
+                        alert(`Tool: ${safeName}\n\nSchema: ${safeSchema}`);
+                    } catch (error) {
+                        alert(`Tool: ${safeName}\n\nSchema: Invalid schema format`);
+                    }
+                };
             }
             
             sanitizeHTML(text) {
@@ -1686,8 +1870,11 @@
                     }
                 }
                 
-                this.currentContextSize += userTokens;
-                this.updateContextCounter();
+                // Performance: Use incremental token counting
+                this.addToContextSize(userTokens);
+                
+                // Performance: Prune chat history if needed
+                this.pruneChatsHistory();
                 
                 // Clear attachments after sending
                 this.attachments = [];
@@ -1804,8 +1991,7 @@
                         const assistantTokens = this.estimateTokenCount(assistantContent);
                         const toolNameTokens = this.estimateTokenCount(toolCall.function.name);
                         const toolArgsTokens = this.estimateTokenCount(toolCall.function.arguments);
-                        this.currentContextSize += (assistantTokens + toolNameTokens + toolArgsTokens);
-                        this.updateContextCounter();
+                        this.addToContextSize(assistantTokens + toolNameTokens + toolArgsTokens);
                         
                         this.handleToolCall(message, toolCall);
                     } else {
@@ -1815,8 +2001,7 @@
                         // Update chat history and context counter
                         this.chatHistory.push({ role: 'assistant', content: messageContent });
                         const assistantTokens = this.estimateTokenCount(messageContent);
-                        this.currentContextSize += assistantTokens;
-                        this.updateContextCounter();
+                        this.addToContextSize(assistantTokens);
                     }
                 } else if (response.content) {
                     this.addAssistantMessage(response.content);
@@ -1824,8 +2009,7 @@
                     // Update chat history and context counter
                     this.chatHistory.push({ role: 'assistant', content: response.content });
                     const assistantTokens = this.estimateTokenCount(response.content);
-                    this.currentContextSize += assistantTokens;
-                    this.updateContextCounter();
+                    this.addToContextSize(assistantTokens);
                 } else {
                     this.secureError('Unexpected LLM response format');
                     this.addSystemMessage('Error: Received unexpected response format from LLM.', 'error');
@@ -2045,8 +2229,16 @@
                 if (indicator) indicator.remove();
             }
             
+            // Performance: Optimized scrolling with debouncing
             scrollToBottom() {
-                this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
+                if (this.isAutoScrolling) return;
+                
+                this.isAutoScrolling = true;
+                requestAnimationFrame(() => {
+                    this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
+                    this.lastScrollPosition = this.elements.chatMessages.scrollTop;
+                    this.isAutoScrolling = false;
+                });
             }
             
             showToolApprovalModal(toolCall) {
@@ -2074,8 +2266,7 @@
                     
                     // Update context counter for the assistant response
                     const assistantTokens = this.estimateTokenCount("I apologize, but I'm unable to use the tool to help with your request. Is there another way I can assist you?");
-                    this.currentContextSize += assistantTokens;
-                    this.updateContextCounter();
+                    this.addToContextSize(assistantTokens);
                 }
                 
                 this.hideToolApprovalModal();
